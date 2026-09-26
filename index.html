@@ -1,240 +1,26 @@
 <!doctype html>
-<html lang="zh-CN">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#173f3a">
-  <meta name="description" content="直接在浏览器游玩的《清河坊浮生记》：接委托、走街区、办事情、收故事。">
-  <title>清河坊浮生记｜在线游戏</title>
-  <link rel="icon" type="image/svg+xml" href="favicon.svg">
-  <link rel="stylesheet" href="styles.css">
-</head>
-<body>
-  <a class="skip-link" href="#game-board">跳到游戏地图</a>
-  <div class="app-shell">
-    <header class="topbar">
-      <div class="brand" aria-label="清河坊浮生记">
-        <span class="seal" aria-hidden="true">坊</span>
-        <div>
-          <strong>清河坊浮生记</strong>
-          <small>约1250年 · 临安市井生活</small>
-        </div>
-      </div>
-      <div class="turn-strip" aria-live="polite">
-        <span id="round-label">第 1 / 7 轮</span>
-        <span class="time-chip" id="time-label">晨</span>
-        <span id="actions-label">尚有 3 次行动</span>
-      </div>
-      <div class="top-actions">
-        <button class="text-button" id="rules-button" type="button">玩法</button>
-        <button class="text-button" id="restart-button" type="button">新开一局</button>
-      </div>
-    </header>
-
-    <main class="game-layout">
-      <section class="status-column" aria-label="玩家状态">
-        <article class="player-card active-player">
-          <div class="player-heading">
-            <span class="player-token player-token-human">你</span>
-            <div>
-              <strong id="player-role">行商学徒</strong>
-              <small id="player-location">清河坊街口</small>
-            </div>
-          </div>
-          <div class="resource-grid">
-            <div><span>钱筹</span><strong id="money-value">5</strong></div>
-            <div><span>信用</span><strong id="credit-value">1</strong></div>
-            <div><span>故事种类</span><strong id="story-value">0/4</strong></div>
-            <div><span>舒心</span><strong id="ease-value">1</strong></div>
-          </div>
-          <p class="role-ability" id="role-ability">身份能力：每轮首次完成跨区委托，额外获得1钱筹。</p>
-        </article>
-
-        <article class="aspiration-card">
-          <div class="eyebrow">浮生志向</div>
-          <h2 id="aspiration-name">百业通达</h2>
-          <p id="aspiration-copy">替不同街区办成差事，在来往之间认识这座城。</p>
-          <div class="stage-track" id="aspiration-track" aria-label="志向进度"></div>
-        </article>
-
-        <article class="ai-card">
-          <div class="player-heading">
-            <span class="player-token player-token-ai">邻</span>
-            <div>
-              <strong id="ai-role">书铺帮工 · 电脑玩家</strong>
-              <small id="ai-location">中瓦</small>
-            </div>
-          </div>
-          <div class="ai-stats"><span id="ai-money">钱筹 5</span><span id="ai-credit">信用 1</span><span id="ai-stories">故事 0</span></div>
-        </article>
-
-        <article class="event-card" aria-live="polite">
-          <div class="eyebrow">本轮市情</div>
-          <h2 id="event-name">早市开张</h2>
-          <p id="event-copy">本轮第一份完成的委托额外获得1钱筹。</p>
-        </article>
-      </section>
-
-      <section class="board-column" id="game-board" aria-label="清河坊游戏地图">
-        <div class="board-toolbar">
-          <div>
-            <strong>选择相邻地点移动</strong>
-            <span id="board-hint">先在清河坊街口看看公开委托。</span>
-          </div>
-          <div class="legend" aria-label="图例">
-            <span><i class="legend-dot human"></i>你</span>
-            <span><i class="legend-dot ai"></i>邻里</span>
-            <span><i class="legend-dot task"></i>可办差事</span>
-          </div>
-        </div>
-        <article class="coach-card" id="coach-card" aria-live="polite">
-          <div class="coach-step" id="coach-step">第一步</div>
-          <div class="coach-copy">
-            <strong id="coach-title">先接一件能马上办成的差事</strong>
-            <p id="coach-description">顾家伙计正在街口等你。领下新幌，送到一街之隔的茶汤铺。</p>
-            <small id="coach-reward">本轮即可办成 · 可得钱筹、信用和茶食故事</small>
-          </div>
-          <button class="coach-action" id="coach-action" type="button">领取第一单（1行动）</button>
-        </article>
-        <div class="map-frame">
-          <div class="map-canvas" id="map-canvas">
-            <svg class="route-layer" id="route-layer" aria-hidden="true" viewBox="0 0 1000 660" preserveAspectRatio="none"></svg>
-            <div class="canal canal-one" aria-hidden="true"></div>
-            <div class="canal canal-two" aria-hidden="true"></div>
-            <div class="map-district district-north">城北市廛</div>
-            <div class="map-district district-center">清河坊与中瓦</div>
-            <div class="map-district district-south">城南与湖山</div>
-            <div id="map-nodes"></div>
-          </div>
-        </div>
-        <div class="history-drawer" id="history-drawer" hidden>
-          <div>
-            <span class="evidence-mark" id="history-mark">史</span>
-            <strong id="history-title">史料小注</strong>
-          </div>
-          <p id="history-copy"></p>
-          <button class="icon-button" id="history-close" type="button" aria-label="关闭史料小注">×</button>
-        </div>
-      </section>
-
-      <aside class="action-column" aria-label="行动与委托">
-        <article class="location-card">
-          <div class="eyebrow">当前地点</div>
-          <div class="location-title-row">
-            <h2 id="location-name">清河坊街口</h2>
-            <button class="source-button" id="source-button" type="button">史料小注</button>
-          </div>
-          <p id="location-copy">坊巷与商铺相接，是本局往来路线的起点。</p>
-          <div class="action-grid" id="action-buttons">
-            <button class="primary-action" data-action="take">领取委托</button>
-            <button data-action="work">做工</button>
-            <button data-action="experience">体验地点</button>
-            <button data-action="deliver">交付委托</button>
-            <button data-action="help">相帮街坊</button>
-            <button data-action="rest">休整</button>
-          </div>
-        </article>
-
-        <section class="panel-section">
-          <div class="panel-heading">
-            <h2>公开委托</h2>
-            <span>最多持有2份</span>
-          </div>
-          <div class="card-stack" id="mission-list"></div>
-        </section>
-
-        <section class="panel-section compact-section">
-          <div class="panel-heading">
-            <h2>故事册</h2>
-            <button class="text-button small" id="story-book-button" type="button">查看</button>
-          </div>
-          <div class="story-category-row" id="story-categories" aria-label="故事类别"></div>
-        </section>
-      </aside>
-    </main>
-
-    <footer class="game-log" aria-live="polite">
-      <strong>街坊消息</strong>
-      <div id="log-copy">早市刚开，先选择角色和志向。</div>
-      <button class="end-turn-button" id="end-turn-button" type="button">结束本轮</button>
-    </footer>
-  </div>
-
-  <dialog class="start-dialog" id="start-dialog">
-    <form method="dialog" id="start-form">
-      <div class="dialog-kicker">单人浏览器版</div>
-      <h1>先办成一件小事，再认识一座城</h1>
-      <p>你有七个早晚与邻里竞争：抢委托、规划路线、收集四类南宋故事，并完成自己的浮生志向。</p>
-      <div class="first-journey">
-        <strong>第一次玩，跟着三步走</strong>
-        <div><span>1</span>在街口领取新幌</div>
-        <div><span>2</span>走到蒋检阅茶汤铺</div>
-        <div><span>3</span>交付并选择谢礼</div>
-        <small>第一轮就能完成一单，之后再自由探索。页面会一直提示“现在做什么”。</small>
-      </div>
-      <p class="fun-hook"><strong>好玩在：</strong>每轮只有3次行动，赶期限、挣钱和停下听故事不能全都要；电脑邻里还会与你争抢市面上的委托。</p>
-      <div class="selection-block">
-        <label for="role-select">选择身份</label>
-        <select id="role-select"></select>
-        <small id="role-description"></small>
-      </div>
-      <div class="selection-block">
-        <label for="aspiration-select">选择志向</label>
-        <select id="aspiration-select"></select>
-        <small id="aspiration-description"></small>
-      </div>
-      <div class="start-summary">
-        <span>7轮</span><span>每轮3行动</span><span>首单约60秒</span><span>收齐4类故事</span>
-      </div>
-      <button class="start-button" id="start-button" value="start" type="submit">跟着第一单开始（推荐）</button>
-      <button class="continue-button" id="continue-button" type="button" hidden>继续上次进度</button>
-      <p class="dialog-note">史料用于约束游戏内容。你不需要查询知识图谱，也不需要扫码。</p>
-    </form>
-  </dialog>
-
-  <dialog class="sheet-dialog" id="rules-dialog">
-    <div class="sheet-header"><h2>怎样玩</h2><button class="icon-button close-dialog" type="button">×</button></div>
-    <div class="rules-first-turn"><strong>第一轮照着做：</strong>领取新幌 → 前往茶汤铺 → 交付。三次行动刚好用完，并会得到第一则故事。</div>
-    <ol>
-      <li><strong>看市情：</strong>每轮都会出现一个影响全城的事件。</li>
-      <li><strong>用3次行动：</strong>移动、接单、交付、做工、体验、相帮或休整。</li>
-      <li><strong>收故事：</strong>不同地点会给出茶食、药业、衣饰、文籍、百工、游艺或街坊故事。</li>
-      <li><strong>完成志向：</strong>三段志向分别值8、16、24分。</li>
-      <li><strong>七轮计分：</strong>志向、故事、信用和钱筹合计60分。少于4类故事时，最高39分。</li>
-    </ol>
-    <p class="rules-note">地图表达游戏路线，不是南宋临安的实测复原图。卡牌中的“本局情境”是为玩法补写的合理虚构。</p>
-  </dialog>
-
-  <dialog class="sheet-dialog" id="story-dialog">
-    <div class="sheet-header"><h2>我的故事册</h2><button class="icon-button close-dialog" type="button">×</button></div>
-    <div id="story-list" class="story-list"></div>
-  </dialog>
-
-  <dialog class="result-dialog" id="result-dialog">
-    <div class="result-seal">终</div>
-    <div class="dialog-kicker">七轮已毕</div>
-    <h2 id="result-title">这一程走完了</h2>
-    <p id="result-copy"></p>
-    <div class="score-table" id="score-table"></div>
-    <button class="start-button" id="play-again-button" type="button">再开一局</button>
-  </dialog>
-
-  <dialog class="moment-dialog" id="tutorial-choice-dialog">
-    <div class="moment-mark">第一单办成</div>
-    <h2>新幌挂起来了，街面也热闹起来</h2>
-    <p>茶汤铺掌柜谢你赶在早市送到。你可以留下帮忙，也可以趁开市再跑一程。</p>
-    <div class="history-boundary">
-      <strong>这段历史哪里是真的？</strong>
-      <span>《梦粱录》清河坊条下确有顾家彩帛铺与蒋检阅茶汤铺；两店之间托送新幌的经过是本局虚构。</span>
-    </div>
-    <div class="choice-grid">
-      <button type="button" data-tutorial-choice="credit"><strong>留下帮掌柜挂稳新幌</strong><span>额外 +1信用</span></button>
-      <button type="button" data-tutorial-choice="money"><strong>趁早市再跑一程</strong><span>额外 +2钱筹</span></button>
-    </div>
-    <small class="moment-note">没有标准答案。你的取舍会改变后续更适合走的路线。</small>
-  </dialog>
-
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="game.js"></script>
-</body>
-</html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#183e39"><meta name="description" content="七日临安，经营你的小日子。接委托、走坊巷、听故事的单人历史游戏。"><title>清河坊浮生记｜七日临安</title><link rel="icon" href="favicon.svg"><link rel="stylesheet" href="styles.css?v=20260926-3"></head>
+<body data-view="map"><a class="skip-link" href="#game-board">跳到地图</a><div class="app-shell">
+<header class="topbar"><div class="brand"><span class="seal">坊</span><div><strong>清河坊浮生记</strong><small>约1250年 · 七日临安</small></div></div><div class="turn-strip" aria-live="polite"><strong id="round-label">第1 / 7日</strong><span id="time-label">晨市</span><b id="actions-label">3行动</b></div><div class="top-actions"><button id="rules-button">玩法</button><button id="restart-button">新开一局</button></div></header>
+<nav class="view-tabs" aria-label="游戏面板"><button data-view="map" aria-pressed="true">坊巷地图</button><button data-view="tasks" aria-pressed="false">行动与委托 <b id="task-count">0</b></button><button data-view="life" aria-pressed="false">志向与市情</button><button id="log-button">本局记录</button></nav>
+<main class="game-layout"><section class="status-column" aria-label="志向与市情">
+<article class="player-card"><div class="player-heading"><span id="player-portrait" class="portrait"></span><div><strong id="player-role"></strong><small id="player-location"></small></div></div><div class="resource-grid"><div title="游戏货币，用于取货和听故事；每枚计1分，最多12分。"><span>钱筹</span><strong id="money-value">5</strong></div><div title="接高门槛委托需要信用；每点计2分，上限6点。"><span>信用</span><strong id="credit-value">1</strong></div><div title="共7类，至少4类可解除总分39分封顶。"><span>故事种类</span><strong id="story-value">0/7</strong></div><div title="上限3点；拥桥时花1点抵消额外行动。"><span>舒心</span><strong id="ease-value">1</strong></div></div><p class="role-ability" id="role-ability"></p><small id="category-goal"></small></article>
+<article class="aspiration-card"><div class="eyebrow">我的志向 · 每段8分</div><h2 id="aspiration-name"></h2><p id="aspiration-copy"></p><div id="aspiration-track" class="stage-track"></div></article>
+<article class="event-card"><div class="eyebrow">本日市情 · 双方适用</div><h2 id="event-name"></h2><p id="event-copy"></p><p id="forecast-copy" class="forecast"></p><button id="event-source" class="text-button">查看依据</button></article>
+<article class="ai-card"><div class="player-heading"><span id="ai-portrait" class="portrait small-portrait"></span><div><strong>阿文 · 电脑邻里</strong><small id="ai-location"></small></div></div><div class="ai-stats"><span id="ai-money"></span><span id="ai-credit"></span><span id="ai-stories"></span></div><p id="ai-intent"></p><small>虚构的书铺帮工，偏爱文籍与游艺；雨天更愿意就近办事。中瓦是他的出发地。</small><details><summary>上一轮做了什么</summary><div id="ai-last-turn"></div></details></article>
+</section><section class="board-column" id="game-board" aria-label="坊巷地图">
+<div class="board-toolbar"><div><strong>坊巷游览图</strong><small id="board-hint">点店铺看详情，再确认移动</small></div><div class="map-tools"><button id="zoom-out" aria-label="缩小地图">−</button><button id="map-fit">全图</button><button id="zoom-in" aria-label="放大地图">＋</button><button id="map-center">找自己</button></div></div>
+<article class="coach-card" id="coach-card" aria-live="polite"><span id="coach-step"></span><div><strong id="coach-title"></strong><p id="coach-description"></p><small id="coach-reward"></small></div><button id="coach-action" class="primary-action"></button></article>
+<div class="map-frame"><div id="map-sizer"><div class="map-canvas" id="map-canvas"><svg id="map-art" class="map-art" viewBox="0 0 1320 1000" aria-hidden="true"></svg><svg id="route-layer" class="route-layer" viewBox="0 0 1320 1000" aria-hidden="true"></svg><div id="map-nodes"></div></div></div></div>
+<div class="map-caption">地段据文献分组；立面、间距与连线为游戏编排。扩展地点不按比例。<button id="map-note-button">地图依据</button></div><div class="travel-panel"><strong>从这里可直达</strong><div id="travel-list"></div></div>
+<div class="history-drawer" id="history-drawer" hidden><div><span class="evidence-mark" id="history-mark"></span><strong id="history-title"></strong><button id="history-close" class="icon-button" aria-label="收起史料">×</button></div><p id="history-copy"></p><details><summary>出处与虚构说明</summary><div id="history-sources"></div></details></div>
+</section><aside class="action-column" aria-label="行动与委托">
+<article class="location-card"><div class="eyebrow">你现在所在的店铺</div><div class="location-title-row"><h2 id="location-name"></h2><button id="source-button" class="text-button">史料</button></div><p id="location-copy"></p><div id="action-buttons" class="action-grid"><button data-action="take">接单</button><button data-action="deliver">办理</button><button data-action="work">做工</button><button data-action="experience">听故事</button><button data-action="help">帮街坊</button><button data-action="rest">歇脚</button><button data-action="inquire">打听消息</button></div></article>
+<section class="panel-section"><div class="panel-heading"><h2>委托簿</h2><span id="mission-limit">最多持有2份</span></div><div id="deadline-alert" role="status"></div><div id="mission-list" class="card-stack"></div></section><section class="panel-section"><div class="panel-heading"><h2>故事册</h2><button id="story-book-button">翻一翻</button></div><div id="story-categories" class="story-category-row"></div><small>7类中取得4类达标；每则故事2分，最多12分。</small></section>
+</aside></main><footer class="game-log"><div class="pocket" id="pocket-resources"></div><div id="log-copy" aria-live="polite">早市刚开，选个身份出门吧。</div><button id="end-turn-button" class="end-turn-button">结束本轮</button></footer></div>
+<dialog id="start-dialog" class="start-dialog" aria-labelledby="start-title"><form id="start-form"><div class="dialog-kicker">清河坊浮生记 · 反馈修订版</div><h1 id="start-title">七日临安，<br>过好你的小日子。</h1><p>每轮3次行动。接差事挣钱，走街巷听故事，赶在邻里之前完成你的志向。</p><div class="mode-picker"><label><input type="radio" name="mode" value="beginner" checked> 初来乍到<small>跟着三步，先办成一单</small></label><label><input type="radio" name="mode" value="experienced"> 熟门熟路<small>自由开局，自己挑差事</small></label></div><div class="start-select-grid"><label>你的身份<select id="role-select"></select><small id="role-description"></small></label><label>你的志向<select id="aspiration-select"></select><small id="aspiration-description"></small></label></div><details class="role-help"><summary>六种身份有什么区别？</summary><div class="table-scroll"><table><thead><tr><th>身份／营生</th><th>本版能力</th><th>例子</th></tr></thead><tbody id="role-table"></tbody></table></div></details><button id="start-button" class="start-button" type="submit">开始第一单</button><button id="continue-button" type="button" hidden>继续上次进度</button><small class="dialog-note" id="save-note">进度保存在当前浏览器；手机横屏可同时看地图与委托。</small></form></dialog>
+<dialog id="rules-dialog" class="sheet-dialog" aria-labelledby="rules-title"><div class="sheet-header"><h2 id="rules-title">怎么过好这七日</h2><button class="close-dialog icon-button" aria-label="关闭玩法">×</button></div><p><strong>接单 → 去目标地点 → 办理交付。</strong>点店铺只查看和选路，按“确认前往”才扣行动。“可直达”列出本步所有选择。</p><p>你行动后点“结束本轮”，阿文也用3行动；双方都受市情影响。每轮是一日，晨市出门、晚市结算。第7日晚市算总分。</p><div class="table-scroll"><table><thead><tr><th>名词</th><th>大白话解释</th></tr></thead><tbody><tr><td>新幌</td><td>挂在店外招徕客人的招牌布幌。第一单就是帮人送新招牌。</td></tr><tr><td>行动</td><td>每天的时间预算。接单、交付、做工各花1次；移动费用看地点按钮。</td></tr><tr><td>钱筹</td><td>游戏里统一的钱，用于取货、听故事；不是宋代某一种币值。</td></tr><tr><td>信用</td><td>办事口碑。帮街坊和完成委托可以增加，逾期减1；做工只挣钱。上限6。</td></tr><tr><td>舒心</td><td>拥桥时花1点，免去额外的1行动；歇脚可补充，上限3。</td></tr><tr><td>打听消息</td><td>花1行动看明日市情，每日一次。预览是策略机制，不表示古人能预知天气。</td></tr></tbody></table></div><details><summary>所有行动的费用和用途</summary><div id="action-reference"></div></details><details><summary>计分：双方同一规则</summary><p>志向按顺序每达成一段加8分，最多24；每则不同故事2分，最多12；每点信用2分，最多12；每枚钱筹1分，最多12。合计最高60分。故事不足4类时总分最高39分；故事共7类，类别和则数分别统计。</p><p>志向以终局状态结算，需连续满足前面的阶段。保持信用、没有逾期等条件在终局前只是暂时达标。</p></details><details id="map-basis"><summary>历史边界与地图依据</summary><p>店名与地段主要来自《梦粱录》卷十三“铺席”；金叶铺号来自实物铭文。地图按地段分组，街景插图与步行连接属于游戏设计。原照片帮助理解街河与铺面，不能据此推定每家门牌和距离。</p><p>史＝史料记载；推＝有背景依据的推定；传＝传说；游＝游戏创作。人物、合作关系、奖励和七日事件次序均为虚构。部分旧资料只到书目层级，索引明确标记“条目待补核”，不编造页码。</p></details></dialog>
+<dialog id="story-dialog" class="sheet-dialog" aria-labelledby="story-title"><div class="sheet-header"><h2 id="story-title">我的故事册</h2><button class="close-dialog icon-button" aria-label="关闭故事册">×</button></div><div id="story-list"></div></dialog>
+<dialog id="log-dialog" class="sheet-dialog" aria-labelledby="log-title"><div class="sheet-header"><h2 id="log-title">这一路的街坊消息</h2><button class="close-dialog icon-button" aria-label="关闭记录">×</button></div><div id="log-list"></div></dialog>
+<dialog id="result-dialog" class="result-dialog" aria-labelledby="result-title"><div class="dialog-kicker">七日晚市 · 浮生小结</div><h2 id="result-title"></h2><p id="result-copy"></p><div id="score-table"></div><details open><summary>志向计分详情</summary><div id="score-details"></div></details><details><summary>本局史料索引与虚构情境</summary><div id="result-sources"></div></details><details><summary>本局行动回顾</summary><div id="result-log"></div></details><button id="download-review">保存本局小记</button><button id="play-again-button" class="start-button">再开一局</button></dialog>
+<dialog id="choice-dialog" class="moment-dialog" aria-labelledby="choice-title"><h2 id="choice-title"></h2><p id="choice-copy"></p><div id="choice-options" class="choice-grid"></div><button id="choice-cancel">暂不选择</button></dialog><div id="toast" role="status" class="toast"></div><script src="game.js?v=20260926-3"></script></body></html>

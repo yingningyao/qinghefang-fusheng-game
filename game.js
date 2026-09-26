@@ -1,1147 +1,181 @@
-const $ = (selector) => document.querySelector(selector);
-const $$ = (selector) => [...document.querySelectorAll(selector)];
-const SAVE_KEY = "qinghefang-fusheng-save-v2";
-const TUTORIAL_MISSION_ID = "com_banner_delivery";
-const TUTORIAL_EVENT_ID = "event_festival_market";
-const TIME_LABELS = ["晨", "午", "昏", "夜", "晨", "午", "昏"];
+"use strict";
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const SAVE_KEY="qinghefang-fusheng-save-v3", OLD_SAVE_KEY="qinghefang-fusheng-save-v2", TUTORIAL_MISSION_ID="com_banner_delivery";
+let gameData,state,toastTimer,choiceResolver,mapZoom=.85,storageWarned=false;
+const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const nodeById=id=>gameData.map.nodes.find(n=>n.id===id), missionById=id=>gameData.commissions.find(n=>n.id===id), roleById=id=>gameData.roles.find(n=>n.id===id), aspirationById=id=>gameData.aspirations.find(n=>n.id===id);
+const currentEvent=()=>gameData.cityEvents.find(e=>e.id===state.eventId), categories=a=>[...new Set(a.stories.map(s=>s.category))], markText=v=>(Array.isArray(v)?v.join("·"):v)||"游";
+const isTea=n=>n.name.includes("茶")||(n.tags||[]).includes("茶坊"), isEntertainment=n=>(n.tags||[]).includes("游艺");
+function shuffled(items){const a=[...items];for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function freshRoundFlags(){return {workedNodes:[],helped:false,rested:false,bridgeCrossed:false,remoteCrossed:false,roleBonus:false,festivalBonus:false,teahouseEvent:false,fireEvent:false,rainClearEvent:false,lanternEvent:false,inquired:false};}
+function newActor(roleId,aspirationId,location){return {roleId,aspirationId,location,actions:3,money:5,credit:1,comfort:1,stories:[],activeMissions:[],completedMissionIds:[],visited:[location],worked:0,helped:0,onTime:0,expired:0,crossRegionCompleted:0,comfortGained:0,creditNeverZero:true,visitedTea:false,visitedEntertainment:isEntertainment(nodeById(location)),roundFlags:freshRoundFlags()};}
+function initialState(roleId,aspirationId,mode="beginner"){
+ const deck=shuffled(gameData.commissions.map(m=>m.id).filter(id=>mode!=="beginner"||id!==TUTORIAL_MISSION_ID));
+ if(mode==="experienced"){const nearby=deck.findIndex(id=>missionById(id).startNode==="loc_ruan_fruit");if(nearby>=0)deck.unshift(deck.splice(nearby,1)[0]);}
+ const events=["event_festival_market",...shuffled(gameData.cityEvents.map(e=>e.id).filter(id=>id!=="event_festival_market"))];
+ return {...newActor(roleId,aspirationId,"loc_street"),version:3,started:true,ended:false,mode,round:1,publicMissionIds:mode==="beginner"?[TUTORIAL_MISSION_ID,...deck.splice(0,2)]:deck.splice(0,3),missionDeck:deck,eventDeck:events,eventIndex:0,eventId:events[0],seenEvents:[events[0]],engagedMissions:[],viewedEntities:[],selectedMissionId:mode==="beginner"?TUTORIAL_MISSION_ID:null,selectedNodeId:null,tutorialComplete:mode!=="beginner",showHint:false,pendingStoryIds:[],logs:[],log:"今天想先做什么？点地图看店铺，或打开委托簿挑一单。",ai:newActor("role_bookshop_assistant","asp_keep_promises","loc_zhongwa"),aiNotes:[],aiIntentId:null};
+}
+function saveGame(){try{if(state)localStorage.setItem(SAVE_KEY,JSON.stringify(state));}catch{if(!storageWarned){storageWarned=true;showToast("浏览器暂时不能保存进度；本页仍可继续玩，请勿关闭。");}}}
+function restoreGame(){try{const saved=JSON.parse(localStorage.getItem(SAVE_KEY)||"null");if(saved?.version===3&&saved.started&&nodeById(saved.location))return saved;const old=JSON.parse(localStorage.getItem(OLD_SAVE_KEY)||"null");if(!old?.started||old.version!==2||!nodeById(old.location))return null;
+ const s={...initialState(old.roleId,old.aspirationId),...old,version:3,mode:"beginner",tutorialComplete:old.completedMissionIds.includes(TUTORIAL_MISSION_ID),pendingStoryIds:[],logs:[],seenEvents:old.eventDeck.slice(0,old.eventIndex+1),engagedMissions:[...old.completedMissionIds,...old.activeMissions.map(m=>m.id)],viewedEntities:[],ended:false};
+ s.ai={...newActor(old.ai.roleId,old.ai.aspirationId,old.ai.location),...old.ai,activeMissions:old.ai.activeMission?[old.ai.activeMission]:[],completedMissionIds:old.ai.stories.filter(t=>t.id.startsWith("mission_")).map(t=>t.id.slice(8)),roundFlags:freshRoundFlags()};s.roundFlags={...freshRoundFlags(),...old.roundFlags};s.log="旧进度已接续；双方从本轮起按修订规则行动、计分。";return s;}catch{return null;}}
+function showToast(message){const t=$("#toast");t.textContent=message;t.classList.add("show");clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),3300);}
+function log(message,actor=state){state.log=message;state.logs.push({round:state.round,who:actor===state?"你":"阿文",text:message});state.logs=state.logs.slice(-250);if(actor!==state)state.aiNotes.push(message);}
+function resource(a,key,amount){const before=a[key];a[key]=Math.max(0,Math.min(key==="credit"?6:key==="comfort"?3:Infinity,before+amount));if(key==="comfort"&&amount>0)a.comfortGained+=a[key]-before;if(a.credit===0)a.creditNeverZero=false;}
+function canAct(a,cost=1){return !!state&&!state.ended&&a.actions>=cost;}
+function spend(a,count,text){if(!canAct(a,count)){if(a===state)showToast(`这一步需要${count}行动，现在剩${a.actions}行动。`);return false;}a.actions-=count;if(text)log(text,a);return true;}
+function addStory(a,story,nodeId=a.location){if(a.stories.some(s=>s.id===story.id))return false;a.stories.push({...story,acquiredNode:nodeId});return true;}
+function engaged(m){if(!state.engagedMissions.includes(m.id))state.engagedMissions.push(m.id);}
+function refillPublicMissions(){const blocked=new Set([...state.publicMissionIds,...state.activeMissions.map(m=>m.id),...state.ai.activeMissions.map(m=>m.id),...state.completedMissionIds,...state.ai.completedMissionIds]);state.missionDeck=state.missionDeck.filter(id=>!blocked.has(id));while(state.publicMissionIds.length<3&&state.missionDeck.length)state.publicMissionIds.push(state.missionDeck.shift());}
+function edgeBetween(a,b){return gameData.map.edges.find(e=>(e.from===a&&e.to===b)||(e.to===a&&e.from===b));}
+function adjacentNodes(id){return gameData.map.edges.filter(e=>e.from===id||e.to===id).map(e=>e.from===id?e.to:e.from);}
+// Shared, side-effect-free quote. Movement commits only after affordability is checked.
+function movementQuote(actor,edge,useComfort=false,flags=actor.roundFlags){let cost=Number(edge.cost||1),comfort=0;const ev=currentEvent().effect;
+ if(edge.kind==="bridge"&&!flags.bridgeCrossed){if(actor.roleId==="role_wharf_porter")cost=Math.max(0,cost-1);if(ev.firstBridgeCrossingExtraMovement){if(useComfort&&actor.comfort>0)comfort=1;else cost+=ev.firstBridgeCrossingExtraMovement;}}
+ if(edge.kind==="remote"&&!flags.remoteCrossed&&ev.firstRemoteRouteExtraMovement&&!ev.immuneRoles?.includes(actor.roleId))cost+=ev.firstRemoteRouteExtraMovement;return {cost,comfort};}
+// Include crossing flags in the search so first-crossing surcharges are applied only once.
+function shortestPath(start,target,actor=state,useComfort=false){if(start===target)return [];const first={node:start,b:actor.roundFlags.bridgeCrossed,r:actor.roundFlags.remoteCrossed,cost:0,path:[]},key=o=>`${o.node}|${+o.b}|${+o.r}`,queue=[first],dist=new Map([[key(first),0]]);
+ while(queue.length){queue.sort((a,b)=>a.cost-b.cost);const at=queue.shift();if(at.cost!==dist.get(key(at)))continue;if(at.node===target)return at.path;for(const to of adjacentNodes(at.node)){const edge=edgeBetween(at.node,to),q=movementQuote(actor,edge,useComfort,{bridgeCrossed:at.b,remoteCrossed:at.r}),next={node:to,b:at.b||edge.kind==="bridge",r:at.r||edge.kind==="remote",cost:at.cost+q.cost,path:[...at.path,{from:at.node,to,edge,cost:q.cost}]};if(next.cost<(dist.get(key(next))??Infinity)){dist.set(key(next),next.cost);queue.push(next);}}}return [];}
+function pathActionCost(start,target,actor=state){if(start===target)return 0;const p=shortestPath(start,target,actor);return p.length?p.reduce((n,s)=>n+s.cost,0):Infinity;}
+function commitMove(a,target,useComfort=false){const edge=edgeBetween(a.location,target);if(!edge)return false;const q=movementQuote(a,edge,useComfort);if(!spend(a,q.cost,`${a===state?"你":"阿文"}：${nodeById(a.location).name} → ${nodeById(target).name}（${q.cost}行动${q.comfort?"，用1舒心避拥挤":""}）。`))return false;a.comfort-=q.comfort;a.location=target;if(edge.kind==="bridge")a.roundFlags.bridgeCrossed=true;if(edge.kind==="remote")a.roundFlags.remoteCrossed=true;if(!a.visited.includes(target))a.visited.push(target);a.visitedTea||=isTea(nodeById(target));a.visitedEntertainment||=isEntertainment(nodeById(target));return true;}
+async function moveTo(target){if(!state||state.ended)return;const edge=edgeBetween(state.location,target);if(!edge)return showToast("这里不能一步到达。请从“可直达”中选一个落脚点。");let use=false;if(edge.kind==="bridge"&&!state.roundFlags.bridgeCrossed&&currentEvent().effect.firstBridgeCrossingExtraMovement&&state.comfort>0){const q=movementQuote(state,edge,true),normal=movementQuote(state,edge);const result=await choose("桥上人多，怎么走？","舒心可以抵消拥挤额外增加的1行动。",[{value:"ease",title:`花1舒心，走过去（${q.cost}行动）`,disabled:q.cost>state.actions},{value:"time",title:`慢慢等（${normal.cost}行动）`,disabled:normal.cost>state.actions}]);if(result===null)return;use=result==="ease";}if(commitMove(state,target,use)){state.selectedNodeId=null;render();showHistory(nodeById(target));scrollMapToward(target);animateActor();}}
+function missionNextStep(e){return missionById(e.id).steps[e.stepIndex];}
+function stepTargets(e){const s=missionNextStep(e);return s?.node?[s.node]:(s?.options||[]).filter(id=>!e.visitedOptions?.includes(id));}
+function stepTarget(e,a=state){return stepTargets(e).sort((x,y)=>pathActionCost(a.location,x,a)-pathActionCost(a.location,y,a))[0];}
+function verb(s){return {pickup:"取货",deliver:"交付",work:"誊写",inspect:"验看",trade:"办理交引",firePatrol:"巡火",visitAnyTwo:"游访"}[s?.action]||"办理";}
+function stepText(e,a=state){const s=missionNextStep(e);return s?`${verb(s)} · ${nodeById(stepTarget(e,a))?.name||"已完成"}${s.action==="visitAnyTwo"?`（${e.visitedOptions?.length||0}/2）`:""}`:"已完成";}
+function acceptanceCost(m){const f=m.steps[0];return f?.action==="pickup"&&f.node===m.startNode?Number(f.cost?.money||0):0;}
+function missionLimit(){return 2;}
+function remainingRounds(e){return Math.max(0,Math.min(7,e.dueRound)-state.round+1);}
+function estimatedMissionActions(m,a,e=null){let place=a.location,total=0;const entry=e||{stepIndex:m.steps[0].action==="pickup"&&m.steps[0].node===m.startNode?1:0,visitedOptions:[]};if(!e){total+=pathActionCost(place,m.startNode,a)+1;place=m.startNode;}for(let i=entry.stepIndex;i<m.steps.length;i++){const s=m.steps[i];let targets=s.node?[s.node]:s.options.filter(id=>!entry.visitedOptions.includes(id));let count=s.action==="visitAnyTwo"?2-entry.visitedOptions.length:1;while(count-->0&&targets.length){targets.sort((x,y)=>pathActionCost(place,x,a)-pathActionCost(place,y,a));const next=targets.shift();total+=pathActionCost(place,next,a)+1;place=next;}}return total;}
+function acceptMission(a,m){if(!m||!state.publicMissionIds.includes(m.id)||m.startNode!==a.location||a.activeMissions.length>=missionLimit(a)||a.credit<m.requiredCredit||a.money<acceptanceCost(m))return false;if(!spend(a,1,`${a===state?"你":"阿文"}接下《${m.name}》。`))return false;a.money-=acceptanceCost(m);const f=m.steps[0],skip=f.action==="pickup"&&f.node===m.startNode;a.activeMissions.push({id:m.id,stepIndex:skip?1:0,dueRound:Math.min(7,state.round+m.deadlineRounds-1),startRound:state.round,visitedOptions:[]});engaged(m);state.publicMissionIds=state.publicMissionIds.filter(id=>id!==m.id);refillPublicMissions();return true;}
+function finishMission(a,e){const m=missionById(e.id);for(const key of ["money","credit","comfort"])resource(a,key,m.rewards[key]||0);if(m.rewards.storyCategory)addStory(a,{id:`mission_${m.id}`,title:m.name,category:m.rewards.storyCategory,fact:m.historyNote,scene:"人物委托、合作关系、办理过程和奖励均为本局创作。",historyStatus:m.historyStatus,sources:m.sources},a.location);a.completedMissionIds.push(m.id);a.onTime++;let extra=0;
+ if(nodeById(m.startNode).zone!==nodeById(a.location).zone){a.crossRegionCompleted++;if(a.roleId==="role_merchant_apprentice"&&!a.roundFlags.roleBonus){extra++;a.roundFlags.roleBonus=true;}}
+ if(currentEvent().effect.firstCommissionBonusMoney&&!a.roundFlags.festivalBonus){extra+=currentEvent().effect.firstCommissionBonusMoney;a.roundFlags.festivalBonus=true;}a.money+=extra;a.activeMissions=a.activeMissions.filter(x=>x!==e);log(`${a===state?"你":"阿文"}按时办成《${m.name}》，收入${rewardText(m)}${extra?`，能力／市情另加${extra}钱筹`:""}。`,a);if(a===state){state.selectedMissionId=null;if(m.id===TUTORIAL_MISSION_ID&&!state.tutorialComplete){state.tutorialComplete=true;showToast("第一单办成！现在可以自由接单，也可以换一家店听新故事。");}}}
+function advanceMissionFor(a,e){if(!e||!stepTargets(e).includes(a.location))return false;const s=missionNextStep(e),cost=s.cost?.money||0;if(a.money<cost)return false;if(!spend(a,1,`${a===state?"你":"阿文"}在${nodeById(a.location).name}${verb(s)}：《${missionById(e.id).name}》。`))return false;a.money-=cost;if(s.action==="visitAnyTwo"){e.visitedOptions.push(a.location);if(e.visitedOptions.length>=2)e.stepIndex++;}else e.stepIndex++;if(e.stepIndex>=missionById(e.id).steps.length)finishMission(a,e);return true;}
+function takeMission(){const m=missionById(state.selectedMissionId);if(!acceptMission(state,m))return showToast("需在接单地点、有空余委托位，并满足钱筹和信用要求。");render();animateActor();}
+function advanceMission(){const e=state.activeMissions.find(m=>m.id===state.selectedMissionId);if(!advanceMissionFor(state,e))return showToast("先到委托的下一站，并备好所需钱筹和行动。");render();animateActor();}
+function storyAtLocation(a){return gameData.stories.find(s=>s.unlockNodes.includes(a.location)&&!a.stories.some(t=>t.id===s.id));}
+function experienceCost(a,s){if(currentEvent().effect.freeStoryNode===a.location)return 0;return !a.roundFlags.roleBonus&&((a.roleId==="role_bookshop_assistant"&&s.category==="文籍")||(a.roleId==="role_pharmacy_assistant"&&s.category==="药业"))?0:1;}
+function experienceFor(a){const s=storyAtLocation(a);if(!s)return false;const cost=experienceCost(a,s);if(a.money<cost||!spend(a,1,`${a===state?"你":"阿文"}听到《${s.title}》（${s.category}故事，${cost}钱筹）。`))return false;a.money-=cost;if(cost===0&&currentEvent().effect.freeStoryNode!==a.location)a.roundFlags.roleBonus=true;addStory(a,s);return true;}
+function workFor(a){if(a.roundFlags.workedNodes.includes(a.location))return false;const bonus=a.roleId==="role_craft_apprentice"&&!a.roundFlags.roleBonus?1:0;if(!spend(a,1,`${a===state?"你":"阿文"}在${nodeById(a.location).name}做工，挣到${2+bonus}钱筹。`))return false;a.money+=2+bonus;a.worked++;a.roundFlags.workedNodes.push(a.location);if(bonus)a.roundFlags.roleBonus=true;if(currentEvent().effect.firstLocalWorkBonusComfort&&!a.roundFlags.rainClearEvent){resource(a,"comfort",1);a.roundFlags.rainClearEvent=true;}return true;}
+function helpFor(a){if(a.money<1||a.roundFlags.helped)return false;const credit=1+(currentEvent().effect.firstHelpBonusCredit||0);if(!spend(a,1,`${a===state?"你":"阿文"}相帮街坊：花1钱筹，增加${credit}信用（上限6）。`))return false;a.money--;resource(a,"credit",credit);a.helped++;a.roundFlags.helped=true;if(currentEvent().effect.firstHelpStoryCategory){addStory(a,{id:"event_lantern_story",title:"灯市备料的人情",category:"街坊",fact:currentEvent().historyNote,scene:"共同备料与参与者为虚构。在线版为当日互助，不设两轮集资或失败扣钱。",historyStatus:["史","游"],sources:currentEvent().sources});log(`${a===state?"你":"阿文"}收下了灯市备料的街坊故事。`,a);}return true;}
+function restFor(a){if(a.roundFlags.rested)return false;const tea=isTea(nodeById(a.location));if(!spend(a,1,`${a===state?"你":"阿文"}歇脚，舒心增加${tea&&a.roleId==="role_teahouse_runner"?2:1}（上限3）。`))return false;resource(a,"comfort",tea&&a.roleId==="role_teahouse_runner"?2:1);a.roundFlags.rested=true;if(currentEvent().effect.firstTeahouseRestDrawStories&&tea&&!a.roundFlags.teahouseEvent){const options=shuffled(gameData.stories.filter(s=>!a.stories.some(t=>t.id===s.id))).slice(0,2);a.roundFlags.teahouseEvent=true;if(a===state)state.pendingStoryIds=options.map(s=>s.id);else if(options.length){options.sort((x,y)=>Number(categories(a).includes(x.category))-Number(categories(a).includes(y.category)));addStory(a,options[0]);log(`阿文在茶肆从两则传闻中选了《${options[0].title}》。`,a);}}return true;}
+function inquire(){if(state.round>=7||state.roundFlags.inquired)return showToast("今日无需再打听下一日市情。");if(!spend(state,1,"你向街坊打听了明日市情。"))return;state.roundFlags.inquired=true;state.forecastId=state.eventDeck[state.eventIndex+1];if(!state.seenEvents.includes(state.forecastId))state.seenEvents.push(state.forecastId);log(`明日市情：${gameData.cityEvents.find(e=>e.id===state.forecastId).name}。`);render();showToast(state.log);}
+function expireMissions(a){const overdue=a.activeMissions.filter(e=>e.dueRound<=state.round);for(const e of overdue){a.expired++;resource(a,"credit",-1);log(`${a===state?"你":"阿文"}的《${missionById(e.id).name}》到期未办完，信用减1。`,a);}a.activeMissions=a.activeMissions.filter(e=>!overdue.includes(e));return overdue;}
 
-let gameData = null;
-let state = null;
-let toastTimer = null;
-
-const soloRoleCopy = {
-  role_merchant_apprentice: "每轮首次完成跨区委托，额外获得1钱筹。",
-  role_bookshop_assistant: "每轮首次取得文籍故事，体验费用减免1钱筹。",
-  role_pharmacy_assistant: "每轮首次取得药业故事，体验费用减免1钱筹。",
-  role_teahouse_runner: "在茶肆休整时，额外获得1枚舒心。",
-  role_craft_apprentice: "每轮首次做工，额外获得1钱筹。",
-  role_wharf_porter: "每轮第一次经过桥河路线，移动少花1次行动。"
-};
-
-const eventCopy = {
-  event_festival_market: "本轮第一份完成的委托额外获得1钱筹。",
-  event_crowded_bridge: "本轮第一次经过桥河路线多花1次行动；可以花1舒心抵消。",
-  event_teahouse_rest: "本轮第一次在茶肆休整，可额外收下一张尚未获得的故事。",
-  event_fire_watch: "本轮第一次相帮街坊时，额外获得1信用。",
-  event_washe_show: "本轮在中瓦体验地点不花钱筹。",
-  event_long_rain: "本轮第一次走远行路线多花1次行动；河埠脚夫不受影响。",
-  event_rain_clears: "本轮第一次做工后，额外获得1舒心。",
-  event_lantern_preparation: "本轮第一次相帮街坊，还会获得一则街坊故事。"
-};
-
-const aspirationSoloCopy = {
-  asp_stable_living: "办成差事、积攒钱筹，并始终保住自己的信用。",
-  asp_many_trades: "接触不同故事、做工，并完成一份跨区委托。",
-  asp_trusted_neighbor: "提升信用，主动帮助街坊。",
-  asp_walk_the_city: "走访更多地点、远行，并在不同区域留下故事。",
-  asp_master_craft: "靠持续做工熟悉市井行当。",
-  asp_keep_promises: "按期交付，不让手中的委托逾期。",
-  asp_leisure: "积攒舒心，走访茶肆和游艺场所。",
-  asp_help_neighbors: "多次相帮街坊，在忙碌中留下人情。"
-};
-
-const kindCopy = {
-  start: "街口",
-  shop: "商铺",
-  evidenceSpot: "史料点",
-  public: "公共空间",
-  oldSite: "旧迹",
-  extension: "城市扩展",
-  remote: "远行地点"
-};
-
-const mapRows = {
-  top: ["loc_chaotian_gate", "loc_zhongwa", "loc_prefecture_school", "loc_shuangfeng"],
-  coreA: ["loc_ruan_fruit", "loc_yu_crown", "loc_jiang_tea", "loc_gu_cai_bo", "loc_gold_leaf", "loc_lantern_market", "loc_pan_tea", "loc_exchange", "loc_renai_pharmacy", "loc_jinyaojiu_pharmacy"],
-  coreB: ["loc_qi_color", "loc_xu_thread", "loc_shu_paper", "loc_tong_candle", "loc_powder_shops", "loc_zhang_books", "loc_peng_lacquer", "loc_qingbi_fan", "loc_guo_medicine"],
-  remote: ["loc_fengle", "loc_jujing_garden", "loc_lvtai_temple", "loc_taiping_old", "loc_gaoting"]
-};
-
-function displayPosition(id) {
-  if (id === "loc_street") return { x: 50, y: 69 };
-  const layouts = [
-    [mapRows.top, 10, 12, 25],
-    [mapRows.coreA, 29, 5, 10],
-    [mapRows.coreB, 50, 6, 11],
-    [mapRows.remote, 90, 10, 20]
-  ];
-  for (const [ids, y, start, step] of layouts) {
-    const index = ids.indexOf(id);
-    if (index >= 0) return { x: start + index * step, y };
+function chooseAiMission(){const a=state.ai;const available=state.publicMissionIds.map(missionById).filter(m=>m&&!(state.mode==="beginner"&&!state.tutorialComplete&&m.id===TUTORIAL_MISSION_ID)&&m.requiredCredit<=a.credit&&acceptanceCost(m)<=a.money);
+ const rank=m=>{const travel=pathActionCost(a.location,m.startNode,a),estimate=estimatedMissionActions(m,a),theme=["文籍","游艺"].includes(m.rewards.storyCategory)?-1.2:0,rain=currentEvent().id==="event_long_rain"?travel*.7:0;return estimate+travel*.25+theme+rain;};
+ const feasible=available.filter(m=>estimatedMissionActions(m,a)<=a.actions+(Math.min(m.deadlineRounds,8-state.round)-1)*3);
+ feasible.sort((x,y)=>rank(x)-rank(y));return feasible.find(m=>m.id===state.aiIntentId)||feasible[0]||null;
+}
+function updateAiIntent(){state.aiIntentId=state.ai.activeMissions[0]?.id||chooseAiMission()?.id||null;}
+function runAiTurn(){const a=state.ai;a.actions=3;state.aiNotes=[];let guard=0;while(a.actions>0&&guard++<15){const e=a.activeMissions[0];
+  if(e){const s=missionNextStep(e);if(!s){finishMission(a,e);continue;}if(stepTargets(e).includes(a.location)){if(advanceMissionFor(a,e))continue;if(a.money<(s.cost?.money||0)&&workFor(a))continue;}else{const target=stepTarget(e,a),next=shortestPath(a.location,target,a,true)[0];if(next&&commitMove(a,next.to,true))continue;}}
+  else{const mission=chooseAiMission(),local=storyAtLocation(a);if(local&&!categories(a).includes(local.category)&&a.actions>=2&&["文籍","游艺"].includes(local.category)&&a.money>=experienceCost(a,local)){if(experienceFor(a))continue;}
+   if(mission){if(a.location===mission.startNode){if(acceptMission(a,mission))continue;}else{const next=shortestPath(a.location,mission.startNode,a,true)[0];if(next&&commitMove(a,next.to,true))continue;}}
+   if(local&&a.money>=experienceCost(a,local)&&experienceFor(a))continue;
   }
-  const node = nodeById(id);
-  return { x: node.x, y: node.y };
-}
-
-function nodeKind(node) { return kindCopy[node.kind] || node.kind; }
-
-function shuffled(items) {
-  const result = [...items];
-  for (let i = result.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [result[i], result[j]] = [result[j], result[i]];
-  }
-  return result;
-}
-
-function nodeById(id) { return gameData.map.nodes.find((node) => node.id === id); }
-function missionById(id) { return gameData.commissions.find((mission) => mission.id === id); }
-function storyById(id) { return gameData.stories.find((story) => story.id === id); }
-function eventById(id) { return gameData.cityEvents.find((event) => event.id === id); }
-function roleById(id) { return gameData.roles.find((role) => role.id === id); }
-function aspirationById(id) { return gameData.aspirations.find((aspiration) => aspiration.id === id); }
-function markText(value) { return Array.isArray(value) ? value.join("·") : (value || "游"); }
-
-function freshRoundFlags() {
-  return {
-    workedNodes: [], helped: false, rested: false, bridgeCrossed: false,
-    remoteCrossed: false, roleBonus: false, festivalBonus: false,
-    teahouseEvent: false, fireEvent: false, rainClearEvent: false, lanternEvent: false
-  };
-}
-
-function initialState(roleId, aspirationId) {
-  const missionDeck = shuffled(gameData.commissions.map((mission) => mission.id).filter((id) => id !== TUTORIAL_MISSION_ID));
-  const eventDeck = [TUTORIAL_EVENT_ID, ...shuffled(gameData.cityEvents.map((event) => event.id).filter((id) => id !== TUTORIAL_EVENT_ID))];
-  return {
-    version: 2, started: true, round: 1, actions: 3, roleId, aspirationId,
-    location: "loc_street", money: 5, credit: 1, comfort: 1, stories: [],
-    activeMissions: [], completedMissionIds: [],
-    publicMissionIds: [TUTORIAL_MISSION_ID, ...missionDeck.splice(0, 2)], missionDeck,
-    eventDeck, eventIndex: 0, eventId: eventDeck[0], selectedMissionId: TUTORIAL_MISSION_ID,
-    selectedNodeId: null, tutorialChoicePending: false, tutorialChoiceResolved: false,
-    visited: ["loc_street"], worked: 0, helped: 0, onTime: 0, expired: 0,
-    crossRegionCompleted: 0, comfortGained: 0, creditNeverZero: true,
-    visitedTea: false, visitedEntertainment: false, roundFlags: freshRoundFlags(),
-    ai: {
-      roleId: "role_bookshop_assistant", aspirationId: "asp_keep_promises",
-      location: "loc_zhongwa", money: 5, credit: 1, comfort: 1, stories: [],
-      activeMission: null, completed: 0, onTime: 0, expired: 0, visited: ["loc_zhongwa"]
-    },
-    log: "顾家伙计正在街口等你：先领取新幌，再送到蒋检阅茶汤铺。"
-  };
-}
-
-function saveGame() {
-  if (state?.started) localStorage.setItem(SAVE_KEY, JSON.stringify(state));
-}
-
-function restoreGame() {
-  try {
-    const restored = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if (!restored || restored.version !== 2 || !restored.started) return null;
-    restored.roundFlags ||= freshRoundFlags();
-    restored.ai ||= initialState(gameData.roles[0].id, gameData.aspirations[0].id).ai;
-    restored.selectedNodeId ||= null;
-    restored.tutorialChoicePending ||= false;
-    restored.tutorialChoiceResolved ||= false;
-    return restored;
-  } catch {
-    return null;
-  }
-}
-
-function showToast(message) {
-  const toast = $("#toast");
-  toast.textContent = message;
-  toast.classList.add("show");
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toast.classList.remove("show"), 2200);
-}
-
-function log(message) {
-  state.log = message;
-  $("#log-copy").textContent = message;
-}
-
-function fillStartSelections() {
-  const roleSelect = $("#role-select");
-  const aspirationSelect = $("#aspiration-select");
-  roleSelect.innerHTML = gameData.roles.map((role) => `<option value="${role.id}">${role.name}</option>`).join("");
-  aspirationSelect.innerHTML = gameData.aspirations.map((aspiration) => `<option value="${aspiration.id}">${aspiration.name}</option>`).join("");
-  roleSelect.value = "role_merchant_apprentice";
-  aspirationSelect.value = "asp_many_trades";
-  syncStartDescriptions();
-  $("#continue-button").hidden = !restoreGame();
-}
-
-function syncStartDescriptions() {
-  const role = roleById($("#role-select").value) || gameData.roles[0];
-  const aspiration = aspirationById($("#aspiration-select").value) || gameData.aspirations[0];
-  $("#role-description").textContent = soloRoleCopy[role.id] || role.playStyle;
-  $("#aspiration-description").textContent = aspirationSoloCopy[aspiration.id] || aspiration.stages.join("；");
-}
-
-function edgeBetween(a, b) {
-  return gameData.map.edges.find((edge) => (edge.from === a && edge.to === b) || (edge.from === b && edge.to === a));
-}
-
-function adjacentNodes(id) {
-  return gameData.map.edges.filter((edge) => edge.from === id || edge.to === id)
-    .map((edge) => edge.from === id ? edge.to : edge.from);
-}
-
-function currentEvent() { return eventById(state.eventId); }
-function currentNode() { return nodeById(state.location); }
-function activeMissionEntry(id) { return state.activeMissions.find((entry) => entry.id === id); }
-function selectedMission() { return missionById(state.selectedMissionId); }
-function missionNextStep(entry) { return missionById(entry.id).steps[entry.stepIndex] || null; }
-
-function missionStepTargets(entry, step = missionNextStep(entry)) {
-  if (!step) return [];
-  if (step.node) return [step.node];
-  if (Array.isArray(step.options)) {
-    const visited = new Set(entry.visitedOptions || []);
-    return step.options.filter((id) => !visited.has(id));
-  }
-  return [];
-}
-
-function pathActionCost(start, target) {
-  return shortestPath(start, target).reduce((sum, item) => sum + Number(item.edge.cost || 1), 0);
-}
-
-function missionStepTarget(entry) {
-  const targets = missionStepTargets(entry);
-  if (targets.includes(state.location)) return state.location;
-  return targets.sort((a, b) => pathActionCost(state.location, a) - pathActionCost(state.location, b))[0] || null;
-}
-
-function missionStepVerb(step) {
-  if (!step) return "办理";
-  if (step.action === "deliver") return "交付";
-  if (step.action === "pickup") return "取货";
-  if (step.action === "work") return "做工";
-  if (step.action === "inspect") return "验看";
-  if (step.action === "trade") return "交易";
-  if (step.action === "firePatrol") return "巡火";
-  if (step.action === "visitAnyTwo") return "游访";
-  return "办理";
-}
-
-function missionStepDescription(entry) {
-  const step = missionNextStep(entry);
-  if (!step) return "已经办完";
-  if (step.action === "visitAnyTwo") {
-    const count = (entry.visitedOptions || []).length;
-    return `在丰乐楼、聚景园外或履泰将军庙游访（${count}/2）`;
-  }
-  const target = missionStepTarget(entry);
-  return `${target ? `到${nodeById(target).name}` : "按委托要求"}${missionStepVerb(step)}`;
-}
-
-function missionDestinationLabel(mission) {
-  const last = mission.steps[mission.steps.length - 1];
-  if (last.node) return nodeById(last.node).name;
-  if (Array.isArray(last.options)) return "西湖东南三处选二";
-  return "完成全部步骤";
-}
-
-function canAdvanceMissionHere(entry) {
-  const step = missionNextStep(entry);
-  if (!step) return false;
-  return missionStepTargets(entry, step).includes(state.location);
-}
-
-function storyAtLocation(locationId) {
-  return gameData.stories.find((story) => story.unlockNodes.includes(locationId) && !state.stories.some((owned) => owned.id === story.id));
-}
-
-function spendActions(count, message) {
-  if (count > state.actions) {
-    showToast(`还需要${count}次行动，本轮只剩${state.actions}次。`);
-    return false;
-  }
-  state.actions -= count;
-  log(message);
-  return true;
-}
-
-function applyResource(key, amount) {
-  if (key === "credit") state.credit = Math.max(0, Math.min(6, state.credit + amount));
-  if (key === "comfort") {
-    const before = state.comfort;
-    state.comfort = Math.max(0, Math.min(3, state.comfort + amount));
-    if (amount > 0) state.comfortGained += Math.max(0, state.comfort - before);
-  }
-  if (key === "money") state.money = Math.max(0, state.money + amount);
-  if (state.credit === 0) state.creditNeverZero = false;
-}
-
-function refillPublicMissions() {
-  while (state.publicMissionIds.length < 3) {
-    if (!state.missionDeck.length) {
-      const blocked = new Set([
-        ...state.publicMissionIds, ...state.activeMissions.map((entry) => entry.id),
-        ...state.completedMissionIds, state.ai.activeMission?.id
-      ].filter(Boolean));
-      state.missionDeck = shuffled(gameData.commissions.map((mission) => mission.id).filter((id) => !blocked.has(id)));
-      if (!state.missionDeck.length) break;
-    }
-    state.publicMissionIds.push(state.missionDeck.shift());
-  }
-}
-
-function recommendedPublicMission() {
-  const selected = selectedMission();
-  if (selected && state.publicMissionIds.includes(selected.id)) return selected;
-  return state.publicMissionIds.map(missionById)
-    .filter((mission) => mission && state.credit >= mission.requiredCredit && canPayFirstStep(mission))
-    .sort((a, b) => pathActionCost(state.location, a.startNode) - pathActionCost(state.location, b.startNode))[0] || null;
-}
-
-function nextRouteStep(targetId) {
-  if (!targetId || targetId === state.location) return null;
-  return shortestPath(state.location, targetId)[0] || null;
-}
-
-function guideState() {
-  if (!state) return null;
-  if (state.tutorialChoicePending) {
-    return {
-      step: "新手 3/3", title: "第一单办成了，选一份额外谢礼",
-      description: "钱筹让后续行动更宽裕，信用可以接到门槛更高的委托。",
-      reward: "你已经获得钱筹、信用和第一类茶食故事。",
-      action: "choice", actionLabel: "选择谢礼"
-    };
-  }
-  if (state.actions <= 0) {
-    return {
-      step: "本轮完成", title: "三次行动已经用完",
-      description: "让邻里行动后，城市进入下一时段；公开委托也可能被对方抢走。",
-      reward: "下一轮会补满3次行动，并出现新的市情。",
-      action: "end", actionLabel: "让邻里行动"
-    };
-  }
-
-  if (state.selectedNodeId) {
-    const edge = edgeBetween(state.location, state.selectedNodeId);
-    if (edge) {
-      return {
-        step: "你选的路线", title: `准备前往${nodeById(state.selectedNodeId).name}`,
-        description: "确认后才会扣除行动。也可以再点另一个金边地点改选。",
-        reward: `移动消耗${edge.cost || 1}行动`, action: "move", targetNode: state.selectedNodeId,
-        actionLabel: `确认前往（${edge.cost || 1}行动）`
-      };
-    }
-  }
-
-  const tutorial = missionById(TUTORIAL_MISSION_ID);
-  const tutorialEntry = activeMissionEntry(TUTORIAL_MISSION_ID);
-  const tutorialDone = state.completedMissionIds.includes(TUTORIAL_MISSION_ID);
-  if (!tutorialDone && !tutorialEntry && state.publicMissionIds.includes(TUTORIAL_MISSION_ID)) {
-    if (state.location === tutorial.startNode) {
-      return {
-        step: "新手 1/3", title: "先接下街口的第一单",
-        description: "顾家伙计把新制彩帛幌交给你，请你送到一街之隔的蒋检阅茶汤铺。",
-        reward: "花1行动 · 办成可得3钱筹、1信用和茶食故事",
-        action: "take", missionId: TUTORIAL_MISSION_ID, targetNode: state.location,
-        actionLabel: "领取《茶汤铺的新幌子》（1行动）"
-      };
-    }
-    const route = nextRouteStep(tutorial.startNode);
-    return {
-      step: "新手 1/3", title: "先回到清河坊街口接单",
-      description: "第一单已经为你保留。跟着地图上的红色“下一步”标记走。",
-      reward: "到达后即可领取新幌",
-      action: "move", targetNode: route?.to, missionId: TUTORIAL_MISSION_ID,
-      actionLabel: route ? `前往${nodeById(route.to).name}（${route.edge.cost || 1}行动）` : "查看第一单"
-    };
-  }
-  if (!tutorialDone && tutorialEntry) {
-    const target = missionStepTarget(tutorialEntry);
-    if (canAdvanceMissionHere(tutorialEntry)) {
-      return {
-        step: "新手 3/3", title: "把新幌交给茶汤铺掌柜",
-        description: "交付后会立即结算奖励，并揭开真实店名与游戏情节的边界。",
-        reward: "花1行动 · 本轮首份委托还会触发市情奖励",
-        action: "advance", missionId: TUTORIAL_MISSION_ID, targetNode: state.location,
-        actionLabel: "交付新幌（1行动）"
-      };
-    }
-    const route = nextRouteStep(target);
-    return {
-      step: "新手 2/3", title: `前往${nodeById(target).name}`,
-      description: "地图上的红色节点是目标，红色虚线是推荐路线。移动一段会消耗相应行动。",
-      reward: `还剩${tutorialEntry.dueRound - state.round + 1}轮 · 送到后获得钱筹、信用和故事`,
-      action: "move", targetNode: route?.to, missionId: TUTORIAL_MISSION_ID,
-      actionLabel: route ? `前往${nodeById(route.to).name}（${route.edge.cost || 1}行动）` : "查看路线"
-    };
-  }
-
-  const activeSelected = selectedMission() ? activeMissionEntry(selectedMission().id) : null;
-  const activeEntry = activeSelected || state.activeMissions[0];
-  if (activeEntry) {
-    const mission = missionById(activeEntry.id);
-    state.selectedMissionId = mission.id;
-    if (canAdvanceMissionHere(activeEntry)) {
-      const step = missionNextStep(activeEntry);
-      return {
-        step: "推荐下一步", title: `${missionStepVerb(step)}《${mission.name}》`,
-        description: missionStepDescription(activeEntry), reward: `完成可得 ${rewardText(mission)}`,
-        action: "advance", missionId: mission.id, targetNode: state.location,
-        actionLabel: `${missionStepVerb(step)}（1行动）`
-      };
-    }
-    const target = missionStepTarget(activeEntry); const route = nextRouteStep(target);
-    return {
-      step: "推荐下一步", title: `继续《${mission.name}》`,
-      description: missionStepDescription(activeEntry), reward: `限第${activeEntry.dueRound}轮结束前`,
-      action: "move", missionId: mission.id, targetNode: route?.to,
-      actionLabel: route ? `向${nodeById(target).name}前进（${route.edge.cost || 1}行动）` : "查看委托"
-    };
-  }
-
-  const localStory = storyAtLocation(state.location);
-  if (localStory && state.money >= getExperienceCost(localStory)) {
-    const cost = getExperienceCost(localStory);
-    return {
-      step: "发现历史", title: `听听《${localStory.title}》`,
-      description: "故事会同时标明史料可知与本局虚构；收齐4类故事才能突破39分上限。",
-      reward: `花1行动${cost ? `和${cost}钱筹` : ""} · 获得1则${localStory.category}故事`,
-      action: "experience", targetNode: state.location,
-      actionLabel: `体验地点（1行动${cost ? ` · ${cost}钱` : ""}）`
-    };
-  }
-
-  const mission = recommendedPublicMission();
-  if (mission) {
-    state.selectedMissionId = mission.id;
-    if (state.location === mission.startNode) {
-      return {
-        step: "推荐下一单", title: `领取《${mission.name}》`,
-        description: `${nodeById(mission.startNode).name}出发，最后去${missionDestinationLabel(mission)}。`,
-        reward: `限${mission.deadlineRounds}轮 · 可得 ${rewardText(mission)}`,
-        action: "take", missionId: mission.id, targetNode: state.location,
-        actionLabel: "领取委托（1行动）"
-      };
-    }
-    const route = nextRouteStep(mission.startNode);
-    return {
-      step: "推荐下一单", title: `去${nodeById(mission.startNode).name}接单`,
-      description: `《${mission.name}》适合你现在的信用与钱筹。`,
-      reward: `办成可得 ${rewardText(mission)}`, action: "move", missionId: mission.id,
-      targetNode: route?.to, actionLabel: route ? `沿路线前进（${route.edge.cost || 1}行动）` : "查看委托"
-    };
-  }
-
-  return {
-    step: "稳妥行动", title: "先在当前地点做工",
-    description: "没有合适委托时，做工可以补充钱筹，为下一次体验或接单做准备。",
-    reward: "花1行动 · 获得2钱筹", action: "work", targetNode: state.location,
-    actionLabel: "做工（1行动 → +2钱）"
-  };
-}
-
-function renderCoach() {
-  const guide = guideState();
-  if (!guide) return;
-  $("#coach-step").textContent = guide.step;
-  $("#coach-title").textContent = guide.title;
-  $("#coach-description").textContent = guide.description;
-  $("#coach-reward").textContent = guide.reward;
-  const button = $("#coach-action");
-  button.textContent = guide.actionLabel;
-  button.dataset.action = guide.action || "";
-  button.dataset.target = guide.targetNode || "";
-  button.dataset.mission = guide.missionId || "";
-  button.disabled = !guide.action;
-}
-
-function renderMap() {
-  const guide = guideState();
-  const guideTarget = guide?.targetNode || null;
-  const guidePath = guideTarget && guideTarget !== state.location ? shortestPath(state.location, guideTarget) : [];
-  const guideEdges = new Set(guidePath.map((item) => [item.from, item.to].sort().join("|")));
-  const reachable = new Set(adjacentNodes(state.location));
-  $("#route-layer").innerHTML = gameData.map.edges.map((edge) => {
-    const from = displayPosition(edge.from);
-    const to = displayPosition(edge.to);
-    const active = edge.from === state.location || edge.to === state.location ? "active-route" : "";
-    const recommended = guideEdges.has([edge.from, edge.to].sort().join("|")) ? "recommended-route" : "";
-    return `<line class="route-line ${edge.kind === "main" ? "main" : ""} ${edge.kind} ${active} ${recommended}" x1="${from.x * 10}" y1="${from.y * 6.6}" x2="${to.x * 10}" y2="${to.y * 6.6}"/>`;
-  }).join("");
-  const taskNodes = new Set([
-    ...state.publicMissionIds.map((id) => missionById(id)?.startNode),
-    ...state.activeMissions.map((entry) => missionNextStep(entry)?.node)
-  ].filter(Boolean));
-  $("#map-nodes").innerHTML = gameData.map.nodes.map((node) => {
-    const position = displayPosition(node.id);
-    const classes = ["map-node", node.id === state.location ? "current" : "", reachable.has(node.id) ? "reachable" : "", taskNodes.has(node.id) ? "has-task" : "", state.selectedNodeId === node.id ? "selected" : "", guideTarget === node.id && node.id !== state.location ? "recommended" : ""].filter(Boolean).join(" ");
-    const humanPawn = node.id === state.location ? '<i class="pawn human">你</i>' : "";
-    const aiPawn = node.id === state.ai.location ? '<i class="pawn ai">邻</i>' : "";
-    return `<button type="button" class="${classes}" data-node="${node.id}" style="left:${position.x}%;top:${position.y}%" aria-label="${node.name}，${nodeKind(node)}${reachable.has(node.id) ? "，可以移动到这里" : ""}">
-      <strong>${node.name}</strong><small>${node.zone} · ${nodeKind(node)}</small><span class="pawn-row">${humanPawn}${aiPawn}</span>
-    </button>`;
-  }).join("");
-}
-
-function uniqueStoryCategories(stories = state.stories) { return [...new Set(stories.map((story) => story.category))]; }
-
-function zonesWithStories() {
-  return new Set(state.stories.map((owned) => {
-    const original = storyById(owned.id);
-    const node = original ? nodeById(original.unlockNodes[0]) : null;
-    return node?.zone;
-  }).filter(Boolean));
-}
-
-function aspirationProgress() {
-  const id = state.aspirationId;
-  const categories = uniqueStoryCategories().length;
-  const zonesVisited = new Set(state.visited.map((value) => nodeById(value)?.zone).filter(Boolean)).size;
-  let checks = [false, false, false];
-  if (id === "asp_stable_living") checks = [state.completedMissionIds.length >= 3, state.money >= 8, state.creditNeverZero];
-  if (id === "asp_many_trades") checks = [categories >= 3, state.worked >= 4, state.crossRegionCompleted >= 1];
-  if (id === "asp_trusted_neighbor") checks = [state.credit >= 4, state.completedMissionIds.length >= 1, state.helped >= 2];
-  if (id === "asp_walk_the_city") checks = [state.visited.length >= 5, zonesVisited >= 4, zonesWithStories().size >= 3];
-  if (id === "asp_master_craft") checks = [state.worked >= 2, state.worked >= 4, state.worked >= 6];
-  if (id === "asp_keep_promises") checks = [state.onTime >= 2, state.expired === 0, state.completedMissionIds.length >= 4];
-  if (id === "asp_leisure") checks = [state.comfortGained >= 3, state.visitedTea && state.visitedEntertainment, state.comfort >= 2];
-  if (id === "asp_help_neighbors") checks = [state.helped >= 1, state.helped >= 2, state.helped >= 3];
-  return checks.map((done, index) => done && checks.slice(0, index).every(Boolean));
-}
-
-function aspirationProgressDetails() {
-  const categories = uniqueStoryCategories().length;
-  const zonesVisited = new Set(state.visited.map((value) => nodeById(value)?.zone).filter(Boolean)).size;
-  const id = state.aspirationId;
-  if (id === "asp_stable_living") return [`${Math.min(state.completedMissionIds.length, 3)}/3`, `${Math.min(state.money, 8)}/8`, state.creditNeverZero ? "保持中" : "已失守"];
-  if (id === "asp_many_trades") return [`${Math.min(categories, 3)}/3`, `${Math.min(state.worked, 4)}/4`, `${Math.min(state.crossRegionCompleted, 1)}/1`];
-  if (id === "asp_trusted_neighbor") return [`${Math.min(state.credit, 4)}/4`, `${Math.min(state.completedMissionIds.length, 1)}/1`, `${Math.min(state.helped, 2)}/2`];
-  if (id === "asp_walk_the_city") return [`${Math.min(state.visited.length, 5)}/5`, `${Math.min(zonesVisited, 4)}/4`, `${Math.min(zonesWithStories().size, 3)}/3`];
-  if (id === "asp_master_craft") return [`${Math.min(state.worked, 2)}/2`, `${Math.min(state.worked, 4)}/4`, `${Math.min(state.worked, 6)}/6`];
-  if (id === "asp_keep_promises") return [`${Math.min(state.onTime, 2)}/2`, state.expired === 0 ? "保持中" : `${state.expired}次逾期`, `${Math.min(state.completedMissionIds.length, 4)}/4`];
-  if (id === "asp_leisure") return [`${Math.min(state.comfortGained, 3)}/3`, `${Number(state.visitedTea) + Number(state.visitedEntertainment)}/2`, `${Math.min(state.comfort, 2)}/2`];
-  if (id === "asp_help_neighbors") return [`${Math.min(state.helped, 1)}/1`, `${Math.min(state.helped, 2)}/2`, `${Math.min(state.helped, 3)}/3`];
-  return ["0/1", "0/1", "0/1"];
-}
-
-function renderAspiration() {
-  const aspiration = aspirationById(state.aspirationId);
-  const progress = aspirationProgress();
-  const details = aspirationProgressDetails();
-  $("#aspiration-name").textContent = aspiration.name;
-  $("#aspiration-copy").textContent = aspirationSoloCopy[aspiration.id] || aspiration.stages.join("；");
-  $("#aspiration-track").innerHTML = aspiration.stages.map((stage, index) => {
-    const done = progress[index];
-    const current = !done && progress.slice(0, index).every(Boolean);
-    return `<div class="stage ${done ? "done" : ""} ${current ? "current" : ""}"><b>${done ? "✓" : index + 1}</b><strong>${stage}</strong><small>${done ? "已完成" : details[index]}</small></div>`;
-  }).join("");
-}
-
-function rewardText(mission) {
-  const rewards = [];
-  if (mission.rewards.money) rewards.push(`${mission.rewards.money}钱筹`);
-  if (mission.rewards.credit) rewards.push(`${mission.rewards.credit}信用`);
-  if (mission.rewards.comfort) rewards.push(`${mission.rewards.comfort}舒心`);
-  if (mission.rewards.storyCategory) rewards.push(mission.rewards.storyCategory);
-  return rewards.join(" · ");
-}
-
-function missionRouteMarkup(mission, entry = null) {
-  const steps = [{ label: "接单", done: Boolean(entry), current: !entry }];
-  mission.steps.forEach((step, index) => {
-    const handledOnTake = index === 0 && step.action === "pickup" && step.node === mission.startNode;
-    const targetLabel = step.node ? nodeById(step.node).name.replace(/[“”]/g, "") : "湖山选点";
-    steps.push({
-      label: handledOnTake ? "取货" : `${missionStepVerb(step)}·${targetLabel}`,
-      done: Boolean(entry) && index < entry.stepIndex,
-      current: Boolean(entry) && index === entry.stepIndex
-    });
-  });
-  return `<div class="mission-route">${steps.map((step) => `<span class="${step.done ? "done" : ""} ${step.current ? "current" : ""}">${step.done ? "✓ " : ""}${step.label}</span>`).join("")}</div>`;
-}
-
-function renderMissions() {
-  const owned = state.activeMissions.map((entry) => {
-    const mission = missionById(entry.id);
-    const selected = state.selectedMissionId === mission.id ? "selected" : "";
-    return `<button type="button" class="mission-card owned ${selected}" data-mission="${mission.id}"><span class="mission-badge">手中</span><h3>${mission.name}</h3>
-      <p>下一步：${missionStepDescription(entry)}</p>${missionRouteMarkup(mission, entry)}<div class="mission-meta"><span>限第${entry.dueRound}轮结束前</span><span>${rewardText(mission)}</span></div></button>`;
-  }).join("");
-  const publicCards = state.publicMissionIds.map((id) => {
-    const mission = missionById(id);
-    const selected = state.selectedMissionId === mission.id ? "selected" : "";
-    const recommended = id === TUTORIAL_MISSION_ID && !state.completedMissionIds.includes(TUTORIAL_MISSION_ID) ? "recommended-mission" : "";
-    return `<button type="button" class="mission-card ${selected} ${recommended}" data-mission="${mission.id}"><span class="mission-badge public">${recommended ? "新手推荐" : "公开"}</span><h3>${mission.name}</h3>
-      <p>${nodeById(mission.startNode).name} → ${missionDestinationLabel(mission)}</p>${missionRouteMarkup(mission)}<div class="mission-meta"><span>领取1行动 · ${mission.deadlineRounds}轮内</span><span>${rewardText(mission)}</span></div></button>`;
-  }).join("");
-  $("#mission-list").innerHTML = `${owned ? '<div class="stack-label">手中委托</div>' + owned : ""}<div class="stack-label">市面上的差事</div>${publicCards || '<div class="empty-card">暂时没有新的委托</div>'}`;
-}
-
-function renderStoryCategories() {
-  const categories = new Set(uniqueStoryCategories());
-  $("#story-categories").innerHTML = gameData.storyCategories.map((category) => `<div class="story-category ${categories.has(category) ? "found" : ""}" title="${category}">${category.slice(0, 1)}</div>`).join("");
-}
-
-function getExperienceCost(story) {
-  if (!story) return 1;
-  if (currentEvent().id === "event_washe_show" && state.location === "loc_zhongwa") return 0;
-  if (state.roleId === "role_bookshop_assistant" && story.category === "文籍" && !state.roundFlags.roleBonus) return 0;
-  if (state.roleId === "role_pharmacy_assistant" && story.category === "药业" && !state.roundFlags.roleBonus) return 0;
-  return 1;
-}
-
-function canPayFirstStep(mission) {
-  return state.money >= missionAcceptanceCost(mission);
-}
-
-function missionAcceptanceCost(mission) {
-  const first = mission.steps[0];
-  if (!first || first.action !== "pickup" || first.node !== mission.startNode) return 0;
-  return adjustedPurchaseCost(mission, first.cost?.money || 0);
-}
-
-function adjustedPurchaseCost(mission, base) {
-  if (!base) return 0;
-  const category = mission.rewards.storyCategory || "";
-  if (state.roleId === "role_pharmacy_assistant" && category === "药业" && !state.roundFlags.roleBonus) return Math.max(0, base - 1);
-  if (state.roleId === "role_craft_apprentice" && ["衣饰", "百工"].includes(category) && !state.roundFlags.roleBonus) return Math.max(0, base - 1);
-  return base;
-}
-
-function renderActions() {
-  const selected = selectedMission();
-  const publicSelected = selected && state.publicMissionIds.includes(selected.id) ? selected : null;
-  const activeSelected = selected ? activeMissionEntry(selected.id) : null;
-  const nextStep = activeSelected ? missionNextStep(activeSelected) : null;
-  const localStory = storyAtLocation(state.location);
-  const experienceCost = getExperienceCost(localStory);
-  const missionLimit = state.roleId === "role_bookshop_assistant" ? 3 : 2;
-  const takeButton = $("[data-action='take']");
-  const deliverButton = $("[data-action='deliver']");
-  const experienceButton = $("[data-action='experience']");
-  const acceptanceCost = publicSelected ? missionAcceptanceCost(publicSelected) : 0;
-  takeButton.textContent = publicSelected ? `领取《${publicSelected.name}》（1行动${acceptanceCost ? ` · ${acceptanceCost}钱` : ""}）` : "先点选一份公开委托";
-  takeButton.disabled = !publicSelected || publicSelected.startNode !== state.location || state.activeMissions.length >= missionLimit || state.credit < publicSelected.requiredCredit || !canPayFirstStep(publicSelected) || state.actions < 1;
-  takeButton.title = !publicSelected ? "先点选下方公开委托" : publicSelected.startNode !== state.location ? `要到${nodeById(publicSelected.startNode).name}领取` : state.credit < publicSelected.requiredCredit ? "信用还不够" : "花1次行动领取";
-  deliverButton.textContent = activeSelected && nextStep ? `${missionStepVerb(nextStep)}《${selected.name}》（1行动${nextStep.cost?.money ? ` · ${nextStep.cost.money}钱` : ""}）` : "先点选手中的委托";
-  deliverButton.disabled = !activeSelected || !nextStep || !canAdvanceMissionHere(activeSelected) || state.actions < 1;
-  deliverButton.title = activeSelected && nextStep && !canAdvanceMissionHere(activeSelected) ? missionStepDescription(activeSelected) : "花1次行动办理当前步骤";
-  experienceButton.textContent = localStory ? `体验《${localStory.title}》（1行动${experienceCost ? ` · ${experienceCost}钱` : ""}）` : "这里的故事已收下";
-  experienceButton.disabled = !localStory || state.money < experienceCost || state.actions < 1;
-  experienceButton.title = localStory ? `获得1则${localStory.category}故事` : "换一个地点还能发现新故事";
-  const workButton = $("[data-action='work']");
-  workButton.textContent = "做工（1行动 → +2钱）";
-  workButton.disabled = state.roundFlags.workedNodes.includes(state.location) || state.actions < 1;
-  const helpButton = $("[data-action='help']");
-  helpButton.textContent = "相帮街坊（1行动 · 1钱 → +1信用）";
-  helpButton.disabled = state.roundFlags.helped || state.money < 1 || state.credit >= 6 || state.actions < 1;
-  const restButton = $("[data-action='rest']");
-  restButton.textContent = "休整（1行动 → +1舒心）";
-  restButton.disabled = state.roundFlags.rested || state.comfort >= 3 || state.actions < 1;
-}
-
-function renderLocation() {
-  const node = currentNode();
-  const localStory = storyAtLocation(node.id);
-  const hasRecordedStory = gameData.stories.some((story) => story.unlockNodes.includes(node.id));
-  $("#location-name").textContent = node.name;
-  $("#location-copy").textContent = `${node.zone}的${nodeKind(node)}。${localStory ? "这里还有一则故事可以收集。" : hasRecordedStory ? "这里的故事已经读过，仍可做工或办理委托。" : "这里可作为赶路、做工或办理委托的落脚点。"}`;
-  $("#player-location").textContent = node.name;
-}
-
-function render() {
-  if (!state) return;
-  $("#round-label").textContent = `第 ${state.round} / 7 轮`;
-  $("#time-label").textContent = TIME_LABELS[state.round - 1] || "夜";
-  $("#actions-label").textContent = `尚有 ${state.actions} 次行动`;
-  $("#player-role").textContent = roleById(state.roleId).name;
-  $("#role-ability").textContent = `身份能力：${soloRoleCopy[state.roleId] || roleById(state.roleId).playStyle}`;
-  $("#money-value").textContent = state.money;
-  $("#credit-value").textContent = state.credit;
-  $("#story-value").textContent = `${Math.min(uniqueStoryCategories().length, 4)}/4`;
-  $("#ease-value").textContent = state.comfort;
-  $("#ai-role").textContent = `${roleById(state.ai.roleId).name} · 电脑玩家`;
-  $("#ai-location").textContent = nodeById(state.ai.location).name;
-  $("#ai-money").textContent = `钱筹 ${state.ai.money}`;
-  $("#ai-credit").textContent = `信用 ${state.ai.credit}`;
-  $("#ai-stories").textContent = `故事 ${state.ai.stories.length}`;
-  $("#event-name").textContent = currentEvent().name;
-  $("#event-copy").textContent = eventCopy[currentEvent().id] || currentEvent().historyNote;
-  $("#board-hint").textContent = state.selectedNodeId
-    ? `已选择${nodeById(state.selectedNodeId).name}，按下方红色按钮才会移动。`
-    : state.actions > 0 ? "先看下方红色推荐卡；金色边框表示相邻地点，点一下只会选中。" : "本轮行动已用完，让邻里行动后进入下一轮。";
-  $("#end-turn-button").textContent = state.actions > 0 ? "提前结束本轮" : "让邻里行动";
-  $("#log-copy").textContent = state.log;
-  renderLocation(); renderAspiration(); renderCoach(); renderMissions(); renderStoryCategories(); renderMap(); renderActions(); saveGame();
-  if (state.tutorialChoicePending && !$("#tutorial-choice-dialog").open) {
-    setTimeout(() => { if (state?.tutorialChoicePending && !$("#tutorial-choice-dialog").open) $("#tutorial-choice-dialog").showModal(); }, 0);
-  }
-}
-
-function scrollMapToward(nodeId) {
-  const frame = $(".map-frame");
-  const canvas = $("#map-canvas");
-  const node = displayPosition(nodeId);
-  if (!frame || !canvas || !node) return;
-  frame.scrollTo({
-    left: Math.max(0, canvas.scrollWidth * (node.x / 100) - frame.clientWidth / 2),
-    top: Math.max(0, canvas.scrollHeight * (node.y / 100) - frame.clientHeight / 2),
-    behavior: "smooth"
-  });
-}
-
-function showHistory(entity) {
-  const status = markText(entity.historyStatus);
-  $("#history-mark").textContent = status.split("·")[0];
-  $("#history-title").textContent = `${entity.name || entity.title} · ${status}`;
-  $("#history-copy").textContent = entity.fact || entity.scene
-    ? `史料可知：${entity.fact || entity.historyNote} 本局情境：${entity.scene || "具体行动和数值为游戏设计。"}`
-    : entity.historyNote;
-  $("#history-drawer").hidden = false;
-}
-
-function selectMapNode(targetId) {
-  if (!state.started || targetId === state.location) {
-    state.selectedNodeId = null;
-    showHistory(nodeById(targetId));
-    render();
-    return;
-  }
-  const edge = edgeBetween(state.location, targetId);
-  if (!edge) {
-    state.selectedNodeId = null;
-    showHistory(nodeById(targetId));
-    showToast("这里不能一步到达。先沿金色相邻路线移动。 ");
-    render();
-    return;
-  }
-  state.selectedNodeId = targetId;
-  log(`已选择${nodeById(targetId).name}：确认后花${edge.cost || 1}次行动移动。`);
-  render();
-}
-
-function moveTo(targetId) {
-  if (!state.started || targetId === state.location) { showHistory(nodeById(targetId)); return; }
-  const edge = edgeBetween(state.location, targetId);
-  if (!edge) {
-    showHistory(nodeById(targetId));
-    showToast("这个地点不与当前位置直接相连，请沿线路逐段移动。");
-    return;
-  }
-  let cost = Number(edge.cost || 1);
-  if (state.roleId === "role_wharf_porter" && edge.kind === "bridge" && !state.roundFlags.bridgeCrossed) {
-    cost = Math.max(0, cost - 1);
-    state.roundFlags.roleBonus = true;
-  }
-  if (currentEvent().id === "event_crowded_bridge" && edge.kind === "bridge" && !state.roundFlags.bridgeCrossed) {
-    if (state.comfort > 0 && window.confirm("桥面拥挤。花1舒心抵消额外行动吗？")) state.comfort -= 1;
-    else cost += 1;
-  }
-  if (currentEvent().id === "event_long_rain" && edge.kind === "remote" && !state.roundFlags.remoteCrossed && state.roleId !== "role_wharf_porter") cost += 1;
-  if (!spendActions(cost, `你来到${nodeById(targetId).name}，花了${cost}次行动。`)) return;
-  if (edge.kind === "bridge") state.roundFlags.bridgeCrossed = true;
-  if (edge.kind === "remote") state.roundFlags.remoteCrossed = true;
-  state.location = targetId;
-  state.selectedNodeId = null;
-  if (!state.visited.includes(targetId)) state.visited.push(targetId);
-  const target = nodeById(targetId);
-  if (target.name.includes("茶") || target.kind.includes("茶")) state.visitedTea = true;
-  if (target.id === "loc_zhongwa" || target.kind.includes("瓦") || target.kind.includes("游")) state.visitedEntertainment = true;
-  render(); scrollMapToward(targetId);
-}
-
-function takeMission() {
-  const mission = selectedMission();
-  if (!mission || !state.publicMissionIds.includes(mission.id)) return showToast("请先点选一份公开委托。");
-  if (mission.startNode !== state.location) return showToast(`要到${nodeById(mission.startNode).name}领取这份委托。`);
-  const limit = state.roleId === "role_bookshop_assistant" ? 3 : 2;
-  if (state.activeMissions.length >= limit) return showToast(`手中最多保留${limit}份委托。`);
-  if (state.credit < mission.requiredCredit) return showToast("信用还不够，先做工或相帮街坊。");
-  const first = mission.steps[0];
-  const handlesFirstStep = first?.action === "pickup" && first.node === mission.startNode;
-  const cost = missionAcceptanceCost(mission);
-  if (state.money < cost) return showToast("钱筹不够领取任务物品。");
-  if (!spendActions(1, `你领取了《${mission.name}》。`)) return;
-  state.money -= cost;
-  if (handlesFirstStep && cost < (first.cost?.money || 0)) state.roundFlags.roleBonus = true;
-  const entry = { id: mission.id, stepIndex: handlesFirstStep ? 1 : 0, dueRound: state.round + mission.deadlineRounds - 1, startRound: state.round, visitedOptions: [] };
-  state.activeMissions.push(entry);
-  state.publicMissionIds = state.publicMissionIds.filter((id) => id !== mission.id);
-  state.selectedMissionId = mission.id;
-  refillPublicMissions();
-  if (entry.stepIndex >= mission.steps.length) completeMission(entry, mission);
-  else log(`你领取了《${mission.name}》。下一步：${missionStepDescription(entry)}。`);
-  render();
-}
-
-function advanceMission() {
-  const mission = selectedMission();
-  const entry = mission ? activeMissionEntry(mission.id) : null;
-  if (!entry) return showToast("请先点选手中的委托。");
-  const step = missionNextStep(entry);
-  if (!step) return showToast("这份委托已经没有未完成步骤。");
-  if (!canAdvanceMissionHere(entry)) return showToast(`下一步：${missionStepDescription(entry)}。`);
-  const stepCost = step.cost?.money || 0;
-  if (state.money < stepCost) return showToast("钱筹不够完成这一步。");
-  if (!spendActions(1, `你在${currentNode().name}办好了《${mission.name}》的一步。`)) return;
-  state.money -= stepCost;
-  if (step.action === "visitAnyTwo") {
-    entry.visitedOptions ||= [];
-    if (!entry.visitedOptions.includes(state.location)) entry.visitedOptions.push(state.location);
-    if (entry.visitedOptions.length >= 2) entry.stepIndex += 1;
-    else log(`《${mission.name}》已游访1处，还要再访丰乐楼、聚景园外或履泰将军庙中的1处。`);
-  } else {
-    entry.stepIndex += 1;
-  }
-  if (entry.stepIndex >= mission.steps.length) completeMission(entry, mission);
-  render();
-}
-
-function addMissionStory(mission, owner = state) {
-  if (!mission.rewards.storyCategory) return;
-  const id = `mission_${mission.id}`;
-  if (owner.stories.some((story) => story.id === id)) return;
-  owner.stories.push({ id, title: mission.name, category: mission.rewards.storyCategory, fact: mission.historyNote, scene: "你完成的路线和交付过程属于本局情境。", historyStatus: mission.historyStatus });
-}
-
-function completeMission(entry, mission) {
-  const origin = nodeById(mission.startNode);
-  const finalStep = mission.steps[mission.steps.length - 1];
-  const destination = nodeById(finalStep.node || entry.visitedOptions?.at(-1) || finalStep.options?.[0] || state.location);
-  const before = { money: state.money, credit: state.credit, comfort: state.comfort, categories: uniqueStoryCategories().length };
-  applyResource("money", mission.rewards.money || 0);
-  applyResource("credit", mission.rewards.credit || 0);
-  applyResource("comfort", mission.rewards.comfort || 0);
-  addMissionStory(mission);
-  state.completedMissionIds.push(mission.id);
-  if (state.round <= entry.dueRound) state.onTime += 1;
-  if (origin.zone !== destination.zone) {
-    state.crossRegionCompleted += 1;
-    if (state.roleId === "role_merchant_apprentice" && !state.roundFlags.roleBonus) { state.money += 1; state.roundFlags.roleBonus = true; }
-  }
-  if (state.roleId === "role_teahouse_runner" && (destination.name.includes("茶") || destination.kind.includes("茶"))) applyResource("comfort", 1);
-  if (currentEvent().id === "event_festival_market" && !state.roundFlags.festivalBonus) { state.money += 1; state.roundFlags.festivalBonus = true; }
-  state.activeMissions = state.activeMissions.filter((item) => item !== entry);
-  state.selectedMissionId = null;
-  state.selectedNodeId = null;
-  const gains = [];
-  if (state.money > before.money) gains.push(`+${state.money - before.money}钱筹`);
-  if (state.credit > before.credit) gains.push(`+${state.credit - before.credit}信用`);
-  if (state.comfort > before.comfort) gains.push(`+${state.comfort - before.comfort}舒心`);
-  if (uniqueStoryCategories().length > before.categories) gains.push(`新增${mission.rewards.storyCategory}故事`);
-  log(`《${mission.name}》按时办成：${gains.join("、") || rewardText(mission)}。`);
-  showToast(`办成了！${gains.join(" · ") || "奖励已经收入行囊"}`);
-  if (mission.id === TUTORIAL_MISSION_ID && !state.tutorialChoiceResolved) state.tutorialChoicePending = true;
-}
-
-function experienceLocation() {
-  const story = storyAtLocation(state.location);
-  if (!story) return showToast("这里暂时没有新的故事。");
-  const cost = getExperienceCost(story);
-  if (state.money < cost) return showToast("还需要1钱筹才能在这里停留体验。");
-  if (!spendActions(1, `你在${currentNode().name}听到了《${story.title}》。`)) return;
-  state.money -= cost;
-  if (cost === 0 && ["文籍", "药业"].includes(story.category)) state.roundFlags.roleBonus = true;
-  state.stories.push({ ...story });
-  showHistory(story); render();
-}
-
-function workHere() {
-  if (state.roundFlags.workedNodes.includes(state.location)) return showToast("本轮已经在这里做过工了。");
-  if (!spendActions(1, `你在${currentNode().name}做了一阵工，得到2钱筹。`)) return;
-  state.money += 2; state.worked += 1; state.roundFlags.workedNodes.push(state.location);
-  if (state.roleId === "role_craft_apprentice" && !state.roundFlags.roleBonus) {
-    state.money += 1; state.roundFlags.roleBonus = true;
-    log(`你在${currentNode().name}做工，手艺学徒能力让你共得到3钱筹。`);
-  }
-  if (currentEvent().id === "event_rain_clears" && !state.roundFlags.rainClearEvent) { applyResource("comfort", 1); state.roundFlags.rainClearEvent = true; }
-  render();
-}
-
-function helpNeighbors() {
-  if (state.roundFlags.helped) return showToast("本轮已经相帮过街坊。");
-  if (state.money < 1) return showToast("至少需要1钱筹准备材料或跑腿。");
-  if (!spendActions(1, `你在${currentNode().name}相帮街坊，信用增加。`)) return;
-  state.money -= 1; applyResource("credit", 1); state.helped += 1; state.roundFlags.helped = true;
-  if (currentEvent().id === "event_fire_watch" && !state.roundFlags.fireEvent) { applyResource("credit", 1); state.roundFlags.fireEvent = true; }
-  if (currentEvent().id === "event_lantern_preparation" && !state.roundFlags.lanternEvent) {
-    state.stories.push({ id:`lantern_${state.round}`, title:"灯市备料的人情", category:"街坊", fact:currentEvent().historyNote, scene:"你参与备料是本局情境。", historyStatus:currentEvent().historyStatus });
-    state.roundFlags.lanternEvent = true;
-  }
-  render();
-}
-
-function restHere() {
-  if (state.roundFlags.rested) return showToast("本轮已经休整过了。");
-  if (!spendActions(1, `你在${currentNode().name}歇了片刻，恢复1舒心。`)) return;
-  applyResource("comfort", 1); state.roundFlags.rested = true;
-  const isTea = currentNode().name.includes("茶") || currentNode().kind.includes("茶");
-  if (state.roleId === "role_teahouse_runner" && isTea) applyResource("comfort", 1);
-  if (currentEvent().id === "event_teahouse_rest" && isTea && !state.roundFlags.teahouseEvent) {
-    const available = shuffled(gameData.stories.filter((story) => !state.stories.some((owned) => owned.id === story.id)));
-    if (available[0]) state.stories.push({ ...available[0] });
-    state.roundFlags.teahouseEvent = true;
-  }
-  render();
-}
-
-function expirePlayerMissions() {
-  const expired = state.activeMissions.filter((entry) => entry.dueRound <= state.round);
-  if (!expired.length) return "";
-  state.activeMissions = state.activeMissions.filter((entry) => !expired.includes(entry));
-  state.expired += expired.length; applyResource("credit", -expired.length);
-  if (expired.some((entry) => entry.id === state.selectedMissionId)) state.selectedMissionId = null;
-  return `${expired.length}份委托逾期，信用下降。`;
-}
-
-function shortestPath(start, target) {
-  if (start === target) return [];
-  const distances = new Map([[start, 0]]); const previous = new Map(); const queue = [start];
-  while (queue.length) {
-    queue.sort((a, b) => distances.get(a) - distances.get(b));
-    const current = queue.shift();
-    if (current === target) break;
-    gameData.map.edges.filter((edge) => edge.from === current || edge.to === current).forEach((edge) => {
-      const next = edge.from === current ? edge.to : edge.from;
-      const candidate = distances.get(current) + Number(edge.cost || 1);
-      if (candidate < (distances.get(next) ?? Infinity)) {
-        distances.set(next, candidate); previous.set(next, { node: current, edge });
-        if (!queue.includes(next)) queue.push(next);
-      }
-    });
-  }
-  if (!previous.has(target)) return [];
-  const path = []; let cursor = target;
-  while (cursor !== start) {
-    const item = previous.get(cursor); path.unshift({ from: item.node, to: cursor, edge: item.edge }); cursor = item.node;
-  }
-  return path;
-}
-
-function chooseAiMission() {
-  const candidates = state.publicMissionIds.map(missionById).filter((mission) => {
-    const first = mission.steps[0];
-    const acceptanceCost = first?.action === "pickup" && first.node === mission.startNode ? (first.cost?.money || 0) : 0;
-    return mission.id !== TUTORIAL_MISSION_ID && acceptanceCost <= state.ai.money && mission.requiredCredit <= state.ai.credit;
-  });
-  candidates.sort((a, b) => shortestPath(state.ai.location, a.startNode).length - shortestPath(state.ai.location, b.startNode).length);
-  return candidates[0] || null;
-}
-
-function runAiTurn() {
-  let actions = 3; const notes = []; let guard = 0;
-  const finishAiMission = (mission) => {
-    const active = state.ai.activeMission;
-    state.ai.money += mission.rewards.money || 0;
-    state.ai.credit = Math.min(6, state.ai.credit + (mission.rewards.credit || 0));
-    addMissionStory(mission, state.ai); state.ai.completed += 1;
-    if (state.round <= active.dueRound) state.ai.onTime += 1;
-    notes.push(`办成《${mission.name}》`); state.ai.activeMission = null;
-  };
-  while (actions > 0 && guard < 12) {
-    guard += 1;
-    if (state.ai.activeMission) {
-      const mission = missionById(state.ai.activeMission.id);
-      const step = mission.steps[state.ai.activeMission.stepIndex];
-      if (!step) { finishAiMission(mission); continue; }
-      const visited = new Set(state.ai.activeMission.visitedOptions || []);
-      const targets = step.node ? [step.node] : (step.options || []).filter((id) => !visited.has(id));
-      if (targets.includes(state.ai.location)) {
-        state.ai.money = Math.max(0, state.ai.money - (step.cost?.money || 0));
-        if (step.action === "visitAnyTwo") {
-          state.ai.activeMission.visitedOptions ||= [];
-          state.ai.activeMission.visitedOptions.push(state.ai.location);
-          if (state.ai.activeMission.visitedOptions.length >= 2) state.ai.activeMission.stepIndex += 1;
-        } else state.ai.activeMission.stepIndex += 1;
-        actions -= 1;
-        if (state.ai.activeMission.stepIndex >= mission.steps.length) finishAiMission(mission);
-        continue;
-      }
-      const target = targets.sort((a, b) => pathActionCost(state.ai.location, a) - pathActionCost(state.ai.location, b))[0];
-      const next = target ? shortestPath(state.ai.location, target)[0] : null;
-      if (next && Number(next.edge.cost || 1) <= actions) {
-        const moveCost = Number(next.edge.cost || 1); state.ai.location = next.to;
-        if (!state.ai.visited.includes(next.to)) state.ai.visited.push(next.to);
-        actions -= moveCost; continue;
-      }
-    } else {
-      const mission = chooseAiMission();
-      if (mission) {
-        if (state.ai.location === mission.startNode) {
-          const first = mission.steps[0];
-          const handlesFirstStep = first?.action === "pickup" && first.node === mission.startNode;
-          state.ai.money -= handlesFirstStep ? (first.cost?.money || 0) : 0;
-          state.ai.activeMission = { id: mission.id, stepIndex: handlesFirstStep ? 1 : 0, dueRound: state.round + mission.deadlineRounds - 1, visitedOptions: [] };
-          state.publicMissionIds = state.publicMissionIds.filter((id) => id !== mission.id);
-          refillPublicMissions(); actions -= 1; notes.push(`领取《${mission.name}》`); continue;
-        }
-        const next = shortestPath(state.ai.location, mission.startNode)[0];
-        if (next && Number(next.edge.cost || 1) <= actions) {
-          const moveCost = Number(next.edge.cost || 1); state.ai.location = next.to;
-          if (!state.ai.visited.includes(next.to)) state.ai.visited.push(next.to);
-          actions -= moveCost; continue;
-        }
-      }
-    }
-    state.ai.money += 2; actions -= 1; notes.push("做工");
-  }
-  if (state.ai.activeMission?.dueRound <= state.round) {
-    state.ai.activeMission = null; state.ai.credit = Math.max(0, state.ai.credit - 1); state.ai.expired += 1; notes.push("有委托逾期");
-  }
-  return notes.join("、") || "在街巷中歇脚";
-}
-
-function endRound() {
-  if (state.actions > 0 && !window.confirm(`本轮还有${state.actions}次行动，仍要提前结束吗？`)) return;
-  const aiSummary = runAiTurn(); const expiry = expirePlayerMissions();
-  if (state.round >= 7) { render(); showResult(); return; }
-  state.round += 1; state.actions = 3; state.roundFlags = freshRoundFlags();
-  state.selectedNodeId = null;
-  state.eventIndex = (state.eventIndex + 1) % state.eventDeck.length; state.eventId = state.eventDeck[state.eventIndex];
-  refillPublicMissions();
-  log(`邻里本轮${aiSummary}。${expiry ? expiry + " " : ""}第${state.round}轮的市情是“${currentEvent().name}”。`);
-  render();
-}
-
-function playerScore() {
-  const aspiration = aspirationProgress().filter(Boolean).length * 8;
-  const story = Math.min(12, state.stories.length * 2);
-  const credit = Math.min(12, state.credit * 2);
-  const money = Math.min(12, state.money);
-  const raw = aspiration + story + credit + money;
-  const categories = uniqueStoryCategories().length;
-  return { aspiration, story, credit, money, categories, total: categories < 4 ? Math.min(39, raw) : raw };
-}
-
-function aiScore() {
-  const aspiration = [state.ai.completed >= 1, state.ai.completed >= 3, state.ai.completed >= 5].filter(Boolean).length * 8;
-  const story = Math.min(12, state.ai.stories.length * 2);
-  const credit = Math.min(12, state.ai.credit * 2);
-  const money = Math.min(12, state.ai.money);
-  const categories = [...new Set(state.ai.stories.map((item) => item.category))].length;
-  const raw = aspiration + story + credit + money;
-  return { aspiration, story, credit, money, categories, total: categories < 4 ? Math.min(39, raw) : raw };
-}
-
-function showResult() {
-  const mine = playerScore(); const ai = aiScore();
-  $("#result-title").textContent = mine.total > ai.total ? "你的浮生志向更进一步" : mine.total === ai.total ? "你们各有一段好故事" : "邻里先完成了这一程";
-  $("#result-copy").textContent = mine.categories < 4 ? `你收集了${mine.categories}类故事；不足4类，分数按规则封顶为39分。` : `你收集了${mine.categories}类故事，并完成了${aspirationProgress().filter(Boolean).length}段志向。`;
-  $("#score-table").innerHTML = [["志向", mine.aspiration, ai.aspiration], ["故事", mine.story, ai.story], ["信用", mine.credit, ai.credit], ["钱筹", mine.money, ai.money], ["总分", mine.total, ai.total]]
-    .map(([label, player, neighbor], index) => `<div class="score-row ${index === 4 ? "total" : ""}"><span>${label}</span><span>你 ${player}</span><span>邻里 ${neighbor}</span></div>`).join("");
-  localStorage.removeItem(SAVE_KEY); $("#result-dialog").showModal();
-}
-
-function renderStoryBook() {
-  $("#story-list").innerHTML = state.stories.length ? state.stories.map((story) => `<button type="button" class="story-item" data-story="${story.id}"><span class="story-tag">${story.category} · ${markText(story.historyStatus)}</span><h3>${story.title}</h3><p><strong>史料可知：</strong>${story.fact || story.historyNote}</p><p><strong>本局情境：</strong>${story.scene || "具体行动与数值为游戏创作。"}</p></button>`).join("") : '<div class="empty-card">还没有故事。到有故事的地点选择“体验地点”，或完成带故事奖励的委托。</div>';
-}
-
-function openNewGameDialog() {
-  fillStartSelections();
-  if (!$("#start-dialog").open) $("#start-dialog").showModal();
-}
-
-function chooseTutorialReward(choice) {
-  if (!state?.tutorialChoicePending) return;
-  if (choice === "credit") {
-    applyResource("credit", 1);
-    log("你留下帮掌柜挂稳新幌，额外获得1信用。现在可以自由选择下一条街巷。 ");
-    showToast("选择完成：信用 +1");
-  } else {
-    applyResource("money", 2);
-    log("你趁着早市又跑了一程，额外获得2钱筹。现在可以自由选择下一条街巷。 ");
-    showToast("选择完成：钱筹 +2");
-  }
-  state.tutorialChoicePending = false;
-  state.tutorialChoiceResolved = true;
-  $("#tutorial-choice-dialog").close();
-  render();
-}
-
-function attachEvents() {
-  $("#role-select").addEventListener("change", syncStartDescriptions);
-  $("#aspiration-select").addEventListener("change", syncStartDescriptions);
-  $("#start-form").addEventListener("submit", (event) => {
-    event.preventDefault(); state = initialState($("#role-select").value, $("#aspiration-select").value);
-    $("#start-dialog").close(); render(); scrollMapToward(state.location);
-  });
-  $("#continue-button").addEventListener("click", () => {
-    state = restoreGame(); if (!state) return;
-    $("#start-dialog").close(); state.log = `继续第${state.round}轮，当前位置是${nodeById(state.location).name}。`;
-    render(); scrollMapToward(state.location);
-  });
-  $("#map-nodes").addEventListener("click", (event) => {
-    const button = event.target.closest("[data-node]"); if (button) selectMapNode(button.dataset.node);
-  });
-  $("#mission-list").addEventListener("click", (event) => {
-    const card = event.target.closest("[data-mission]"); if (!card) return;
-    state.selectedMissionId = card.dataset.mission;
-    state.selectedNodeId = null;
-    const mission = missionById(card.dataset.mission); const entry = activeMissionEntry(mission.id);
-    const target = entry ? missionStepTarget(entry) : mission.startNode;
-    log(`${entry ? "下一步" : "领取地点"}：${target ? nodeById(target).name : missionDestinationLabel(mission)}。`); render();
-    if (target) scrollMapToward(target);
-  });
-  $("#coach-action").addEventListener("click", (event) => {
-    const button = event.currentTarget;
-    const action = button.dataset.action;
-    if (button.dataset.mission) state.selectedMissionId = button.dataset.mission;
-    if (action === "move" && button.dataset.target) moveTo(button.dataset.target);
-    if (action === "take") takeMission();
-    if (action === "advance") advanceMission();
-    if (action === "experience") experienceLocation();
-    if (action === "work") workHere();
-    if (action === "end") endRound();
-    if (action === "choice" && !$("#tutorial-choice-dialog").open) $("#tutorial-choice-dialog").showModal();
-  });
-  $("#action-buttons").addEventListener("click", (event) => {
-    const action = event.target.closest("[data-action]")?.dataset.action;
-    if (action === "take") takeMission();
-    if (action === "deliver") advanceMission();
-    if (action === "work") workHere();
-    if (action === "experience") experienceLocation();
-    if (action === "help") helpNeighbors();
-    if (action === "rest") restHere();
-  });
-  $("#end-turn-button").addEventListener("click", endRound);
-  $("#source-button").addEventListener("click", () => showHistory(currentNode()));
-  $("#event-name").closest(".event-card").addEventListener("click", () => showHistory(currentEvent()));
-  $("#history-close").addEventListener("click", () => $("#history-drawer").hidden = true);
-  $("#rules-button").addEventListener("click", () => $("#rules-dialog").showModal());
-  $("#story-book-button").addEventListener("click", () => { renderStoryBook(); $("#story-dialog").showModal(); });
-  $("#story-list").addEventListener("click", (event) => {
-    const item = event.target.closest("[data-story]"); if (!item) return;
-    const story = state.stories.find((owned) => owned.id === item.dataset.story); if (story) showHistory(story);
-  });
-  $$(".close-dialog").forEach((button) => button.addEventListener("click", () => button.closest("dialog").close()));
-  $("#restart-button").addEventListener("click", () => {
-    if (state?.started && !window.confirm("放弃当前进度，重新选择角色和志向吗？")) return;
-    localStorage.removeItem(SAVE_KEY); state = null; openNewGameDialog();
-  });
-  $("#play-again-button").addEventListener("click", () => { $("#result-dialog").close(); state = null; openNewGameDialog(); });
-  $$('[data-tutorial-choice]').forEach((button) => button.addEventListener("click", () => chooseTutorialReward(button.dataset.tutorialChoice)));
-}
-
-async function registerWebMCP() {
-  if (!document.modelContext?.registerTool) return;
-  try {
-    await document.modelContext.registerTool({
-      name: "read_qinghefang_game_state",
-      title: "读取清河坊游戏进度",
-      description: "读取《清河坊浮生记》当前回合、位置、资源、委托与故事进度。",
-      inputSchema: { type: "object", properties: {}, additionalProperties: false },
-      annotations: { readOnlyHint: true, untrustedContentHint: false },
-      execute: async (input) => {
-        if (input && Object.keys(input).length) throw new Error("此工具不接受参数");
-        return { content: [{ type: "text", text: state ? JSON.stringify({ round:state.round, actions:state.actions, location:nodeById(state.location).name, money:state.money, credit:state.credit, comfort:state.comfort, missions:state.activeMissions.map((entry) => missionById(entry.id).name), stories:state.stories.map((story) => story.title) }) : "尚未开局" }] };
-      }
-    });
-  } catch (error) {
-    console.warn("WebMCP tool registration skipped", error);
-  }
-}
-
-async function init() {
-  try {
-    const response = await fetch("game-data.json");
-    if (!response.ok) throw new Error("游戏资料加载失败");
-    gameData = await response.json(); fillStartSelections(); attachEvents(); await registerWebMCP(); $("#start-dialog").showModal();
-  } catch (error) {
-    document.body.innerHTML = `<main class="load-error"><h1>游戏暂时没有加载完成</h1><p>${error.message}</p><button onclick="location.reload()">重新加载</button></main>`;
-  }
-}
-
+  if(workFor(a))continue;if(a.comfort<3&&restFor(a))continue;if(a.credit<6&&helpFor(a))continue;log(`阿文留在${nodeById(a.location).name}等待收市（剩余${a.actions}行动未使用）。`,a);break;
+ }a.actions=0;}
+async function endRound(){if(!state||state.ended||state.pendingStoryIds.length)return;const due=state.activeMissions.filter(e=>e.dueRound<=state.round);if(state.actions>0||due.length){const question=due.length?`今天到期：${due.map(e=>`《${missionById(e.id).name}》`).join("、")}。现在收市，每份未完成委托将减1信用。`:`尚有${state.actions}行动可以使用。`;const ok=await choose("现在收市吗？",question,[{value:"end",title:"确认收市，让阿文行动"},{value:"stay",title:"再想一想，回去继续"}]);if(ok!=="end")return;}
+ runAiTurn();expireMissions(state.ai);expireMissions(state);if(state.round>=7){state.ended=true;state.actions=0;log("第7日晚市结束。这七日的故事与账目已经记好。");render();showResult();return;}
+ state.round++;state.actions=3;state.roundFlags=freshRoundFlags();state.ai.actions=3;state.ai.roundFlags=freshRoundFlags();state.eventIndex++;state.eventId=state.eventDeck[state.eventIndex];if(!state.seenEvents.includes(state.eventId))state.seenEvents.push(state.eventId);state.forecastId=null;state.selectedNodeId=null;refillPublicMissions();log(`第${state.round}日开市：${currentEvent().name}。`);render();if(state.aiNotes.length)showToast(`阿文刚才：${state.aiNotes.slice(-2).join(" ")}`);}
+
+function aspirationEvaluation(a){const count=a.completedMissionIds.length,cat=categories(a).length,zones=new Set(a.visited.map(id=>nodeById(id)?.zone)).size,storyZones=new Set(a.stories.map(s=>nodeById(s.acquiredNode||s.unlockNodes?.[0])?.zone).filter(Boolean)).size;
+ const checks={asp_stable_living:[count>=3,a.money>=8,a.creditNeverZero],asp_many_trades:[cat>=3,a.worked>=4,a.crossRegionCompleted>=1],asp_trusted_neighbor:[a.credit>=4,count>=1,a.helped>=2],asp_walk_the_city:[a.visited.length>=5,zones>=4,storyZones>=3],asp_master_craft:[a.worked>=2,a.worked>=4,a.worked>=6],asp_keep_promises:[a.onTime>=2,a.expired===0,count>=4],asp_leisure:[a.comfortGained>=3,a.visitedTea&&a.visitedEntertainment,a.comfort>=2],asp_help_neighbors:[a.helped>=1,a.helped>=2,a.helped>=3]}[a.aspirationId];
+ const detail={asp_stable_living:[`办成${count}/3份`,`钱筹${a.money}/8`,a.creditNeverZero?"目前未降到0":"曾降到0"],asp_many_trades:[`${cat}/3类故事`,`做工${a.worked}/4次`,`跨区${a.crossRegionCompleted}/1份`],asp_trusted_neighbor:[`信用${a.credit}/4`,`办成${count}/1份`,`相帮${a.helped}/2次`],asp_walk_the_city:[`${a.visited.length}/5处`,`${zones}/4区`,`${storyZones}/3区故事`],asp_master_craft:[`${a.worked}/2次`,`${a.worked}/4次`,`${a.worked}/6次`],asp_keep_promises:[`按时${a.onTime}/2份`,a.expired===0?"目前未逾期":`逾期${a.expired}份`,`办成${count}/4份`],asp_leisure:[`获得${a.comfortGained}/3舒心`,`${+a.visitedTea + +a.visitedEntertainment}/2类场所`,`持有${a.comfort}/2舒心`],asp_help_neighbors:[`${a.helped}/1次`,`${a.helped}/2次`,`${a.helped}/3次`]}[a.aspirationId];
+ return checks.map((met,i)=>({met,done:met&&checks.slice(0,i).every(Boolean),label:aspirationById(a.aspirationId).stages[i],detail:detail[i]}));}
+function score(a){const stages=aspirationEvaluation(a),aspiration=stages.filter(s=>s.done).length*8,story=Math.min(12,a.stories.length*2),credit=Math.min(12,a.credit*2),money=Math.min(12,a.money),raw=aspiration+story+credit+money,types=categories(a).length;return {stages,aspiration,story,credit,money,raw,categories:types,total:types<4?Math.min(39,raw):raw};}
+function rewardText(m){return [m.rewards.money?`${m.rewards.money}钱筹`:"",m.rewards.credit?`${m.rewards.credit}信用`:"",m.rewards.comfort?`${m.rewards.comfort}舒心`:"",m.rewards.storyCategory?`${m.rewards.storyCategory}故事`:""].filter(Boolean).join(" · ");}
+function renderAspiration(){const a=aspirationById(state.aspirationId),ev=aspirationEvaluation(state);$("#aspiration-name").textContent=a.name;$("#aspiration-copy").textContent="按顺序达成三段；终局按实际状态结算。";$("#aspiration-track").innerHTML=ev.map((s,i)=>`<div class="stage ${s.done?"done":ev.slice(0,i).every(t=>t.done)?"current":""}"><b>${s.done?"✓":i+1}</b><strong>${esc(s.label)}</strong><small>${esc(s.detail)} · ${s.done?"暂达标 +8":s.met?"待前段完成":"尚未达标"}</small></div>`).join("");}
+function logsMarkup(logs){return logs.map(l=>`<div class="log-entry ${l.who==="阿文"?"neighbor":""}"><span>第${l.round}日 · ${esc(l.who)}</span>${esc(l.text)}</div>`).join("")||"还没有行动记录。";}
+function sourceMarkup(ids=[]){return [...new Set(ids)].map(id=>{const s=gameData.sourceDetails?.[id]||{title:gameData.sources[id],locator:"原资料未列明细目，条目待补核。"};return `<div class="source-item"><strong>${esc(id)} · ${esc(s.title||"来源待核")}</strong><br>${esc(s.locator)}${s.url?` · <a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer">查看原文／资料</a>`:""}${s.note?`<br><span class="uncertain">${esc(s.note)}</span>`:""}</div>`;}).join("")||'<p class="uncertain">本条暂无直接史料定位，属于游戏情境或待核推定。</p>';}
+function entitySources(entity){if(entity.sources?.length)return entity.sources;if(entity.id?.startsWith("mission_"))return missionById(entity.id.slice(8))?.sources||[];return [];}
+function showHistory(entity){if(!entity)return;$("#history-mark").textContent=markText(entity.historyStatus).split("·")[0];$("#history-title").textContent=`${entity.name||entity.title} · ${markText(entity.historyStatus)}`;$("#history-copy").textContent=entity.fact||entity.historyNote||"本局创作。";$("#history-sources").innerHTML=sourceMarkup(entitySources(entity))+`<p class="boundary">${esc(entity.scene||"店铺人物、委托合作、路线间距与数值奖励为游戏创作，不由以上史料直接证明。")}</p>`;$("#history-drawer").hidden=false;if(state&&entity.id&&!state.viewedEntities.includes(entity.id))state.viewedEntities.push(entity.id);}
+function indexEntities(){const ids=new Set([...state.visited,...state.ai.visited,...state.viewedEntities,...state.engagedMissions,...state.seenEvents]);const all=[...gameData.map.nodes,...gameData.commissions,...gameData.cityEvents,...state.stories,...state.ai.stories];const unique=new Map();all.forEach(e=>{if(ids.has(e.id)||state.stories.some(s=>s.id===e.id)||state.ai.stories.some(s=>s.id===e.id))unique.set(e.id,e);});return [...unique.values()];}
+function indexMarkup(){const entities=indexEntities(),sources=[...new Set(entities.flatMap(entitySources))];return `<p class="boundary">本局人物“你”和“阿文”、办事合作、事件次序与奖惩均为虚构。以下区分史料背景与本局情境；仅有书目线索的条目仍需补核。</p>${sourceMarkup(sources)}<h3>本局涉及的内容</h3>${entities.map(e=>`<div class="source-item"><b>${esc(e.name||e.title)}</b> · ${esc(markText(e.historyStatus))}<br>${esc(e.fact||e.historyNote||"游戏情境")}<br><small>来源：${esc(entitySources(e).join("、")||"无直接引据")}。${esc(e.scene||"具体遭遇及行动为游戏设计。")}</small></div>`).join("")}`;}
+function showResult(){const mine=score(state),other=score(state.ai);$("#result-title").textContent=mine.total>other.total?"这一程，你走得更从容":mine.total===other.total?"你们各有一段好故事":"阿文这次略胜一筹";$("#result-copy").textContent=`你 ${mine.total}分 · 阿文 ${other.total}分。你收集${mine.categories}/7类、${state.stories.length}则故事；阿文收集${other.categories}/7类、${state.ai.stories.length}则。`;
+ const rows=[["志向",mine.aspiration,other.aspiration,"每段8分，顺序达成；最多24"],["故事",mine.story,other.story,"每则2分；最多12，类别另算"],["信用",mine.credit,other.credit,"每点2分；最多12"],["钱筹",mine.money,other.money,"每枚1分；最多12"],["原始合计",mine.raw,other.raw,"四项相加"],["类别封顶扣分",mine.raw-mine.total,other.raw-other.total,"不足4类，超过39的部分扣除"],["最终得分",mine.total,other.total,"最高60分"]];
+ $("#score-table").innerHTML=`<div class="table-scroll"><table class="score-table"><thead><tr><th>项目</th><th>你</th><th>阿文</th><th>算法</th></tr></thead><tbody>${rows.map((r,i)=>`<tr class="${i===6?"score-total":""}">${r.map(v=>`<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>`;
+ $("#score-details").innerHTML=[[state,mine,"你"],[state.ai,other,"阿文"]].map(([a,s,name])=>`<div class="score-person"><h3>${name} · ${esc(aspirationById(a.aspirationId).name)} · ${s.aspiration}分</h3><ol>${s.stages.map(stage=>`<li>${esc(stage.label)}：${esc(stage.detail)}。<b>${stage.done?"计8分":stage.met?"本段条件满足，但前段未完成，计0分":"未满足，计0分"}</b></li>`).join("")}</ol></div>`).join("");
+ $("#result-sources").innerHTML=indexMarkup();$("#result-log").innerHTML=logsMarkup(state.logs);if(!$("#result-dialog").open)$("#result-dialog").showModal();}
+function renderStoryBook(){$("#story-list").innerHTML=state.stories.map(s=>`<article class="story-item"><span class="story-tag">${esc(s.category)} · ${esc(markText(s.historyStatus))}</span><h3>${esc(s.title)}</h3><p>${esc(s.fact||s.historyNote)}</p><details><summary>出处与本局情境</summary>${sourceMarkup(entitySources(s))}<p>${esc(s.scene||"体验经过为本局创作。")}</p></details></article>`).join("")||"还没收下故事。到店听故事，或办成带故事奖励的委托。";}
+function downloadReview(){const entities=indexEntities(),text=["清河坊浮生记 · 本局小记",`你：${score(state).total}分；阿文：${score(state.ai).total}分。`,...[[state,"你"],[state.ai,"阿文"]].flatMap(([a,name])=>[`${name}的志向：${aspirationById(a.aspirationId).name}`,...aspirationEvaluation(a).map(s=>`${s.label}：${s.detail}；${s.done?8:0}分`)]),"\n行动记录",...state.logs.map(l=>`第${l.round}日 · ${l.who}：${l.text}`),"\n史料索引",...entities.map(e=>`${e.name||e.title}［${markText(e.historyStatus)}］：${e.fact||e.historyNote}\n来源：${entitySources(e).map(id=>{const s=gameData.sourceDetails[id];return `${id} ${s?.title||gameData.sources[id]} ${s?.locator||"条目待补核"} ${s?.url||""}`;}).join("；")}\n本局人物、路线与合作为虚构。`)];const url=URL.createObjectURL(new Blob([text.join("\n")],{type:"text/plain;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download="清河坊浮生记_本局小记.txt";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+
+const routeCache=new Map();
+function displayPosition(id){return nodeById(id).display;}
+// Orthogonal routes avoid every shop rectangle. Crossing corridors are not extra stops.
+function routePoints(edge){const key=[edge.from,edge.to].sort().join("|");if(routeCache.has(key))return routeCache.get(key);const a=displayPosition(edge.from),b=displayPosition(edge.to),start=[a.x,a.y+70],end=[b.x,b.y+70],keyOf=([x,y])=>`${x},${y}`,startKey=keyOf(start),endKey=keyOf(end);
+ const blocked=(x,y)=>x<10||x>1310||y<10||y>990||gameData.map.nodes.some(n=>Math.abs(x-n.display.x)<80&&y>n.display.y-60&&y<n.display.y+60);
+ const queue=[start],previous=new Map([[startKey,null]]);let head=0;while(head<queue.length&&!previous.has(endKey)){const p=queue[head++];for(const next of [[p[0]+10,p[1]],[p[0]-10,p[1]],[p[0],p[1]+10],[p[0],p[1]-10]]){const k=keyOf(next);if(!previous.has(k)&&!blocked(...next)){previous.set(k,p);queue.push(next);}}}
+ if(!previous.has(endKey))throw new Error(`地图路线缺失：${edge.from} → ${edge.to}`);let points=[],p=end;while(p){points.push(p);p=previous.get(keyOf(p));}points.reverse();points=[[a.x,a.y+42],...points,[b.x,b.y+42]];const compact=points.filter((p,i)=>i===0||i===points.length-1||!((points[i-1][0]===p[0]&&points[i+1][0]===p[0])||(points[i-1][1]===p[1]&&points[i+1][1]===p[1])));routeCache.set(key,compact);return compact;
+}
+function drawMapArt(){const tree=(x,y)=>`<g transform="translate(${x} ${y})"><path d="M0 0v28" stroke="#a78a5e" stroke-width="5"/><circle cy="-6" r="20" fill="#92a482"/><circle cx="-12" cy="2" r="13" fill="#a4af8a"/></g>`;
+ const windows=(x,y)=>`<g transform="translate(${x} ${y})" opacity=".6"><path d="M0 10L25 0l25 10v20H0Z" fill="#bbac8d"/><path d="M-5 9L25 -5 55 9" stroke="#718777" stroke-width="6"/><path d="M13 19h8m10 0h8" stroke="#f7ecd2" stroke-width="8"/></g>`;
+ $("#map-art").innerHTML=`<defs><pattern id="paper" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M0 8h8" stroke="#d4c49e" stroke-width=".3"/></pattern><pattern id="water" width="24" height="12" patternUnits="userSpaceOnUse"><path d="M0 5q6 -4 12 0t12 0" fill="none" stroke="#d7e8da" stroke-width="1"/></pattern></defs><rect width="1320" height="1000" fill="#eee1c3"/><rect width="1320" height="1000" fill="url(#paper)"/>
+ <rect x="18" y="20" width="1284" height="172" rx="20" fill="#d9dfc5" stroke="#adb796" stroke-dasharray="7 7"/><rect x="18" y="860" width="1284" height="125" rx="20" fill="#e5d9c2" stroke="#bcaa88" stroke-dasharray="7 7"/>
+ <rect x="20" y="235" width="300" height="430" rx="30" fill="#e7d1a8"/><rect x="360" y="230" width="345" height="430" rx="30" fill="#e8d9b3"/><rect x="740" y="225" width="300" height="415" rx="30" fill="#e3d5ac"/><rect x="1080" y="225" width="220" height="425" rx="30" fill="#dfd8ba"/>
+ <path d="M10 490C250 480 300 450 470 480S780 475 920 480 1140 490 1310 480" fill="none" stroke="#c3aa7a" stroke-width="51"/><path d="M10 490C250 480 300 450 470 480S780 475 920 480 1140 490 1310 480" fill="none" stroke="#f8eac8" stroke-width="43"/>
+ <path d="M0 692C220 716 330 678 500 695S850 675 1320 696" fill="none" stroke="#819d94" stroke-width="40"/><path d="M0 692C220 716 330 678 500 695S850 675 1320 696" fill="none" stroke="#b4c9bb" stroke-width="30"/>
+ <g fill="#7e8b72" font-family="serif" font-size="18" letter-spacing="4"><text x="22" y="216">水巷口</text><text x="445" y="215">清河坊一带</text><text x="778" y="209">市西坊南等</text><text x="1110" y="209">官巷诸铺</text><text x="25" y="840">桥河沿线 · 城市道路抽象</text></g>
+ <g fill="#677965" font-family="serif" font-size="14"><text x="38" y="46">城市扩展 ／ 非同比例</text><text x="660" y="886">湖山远行与城市旧闻 ／ 虚线表示扩展</text><text x="600" y="692">桥河</text></g>
+ ${[[345,367],[705,360],[1060,580],[710,775],[350,787],[49,779],[1280,120]].map(([x,y])=>tree(x,y)).join("")}${[[350,640],[715,640],[1040,655],[340,320],[1065,350]].map(([x,y])=>windows(x,y)).join("")}
+ <g transform="translate(380 692)"><path d="M-35 1q35 34 70 0Z" fill="#9b7345"/><path d="M0 0v-28l23 20H0" fill="#f5ead3" stroke="#8b734c"/></g><g transform="translate(910 695)"><path d="M-28 0q28 22 56 0Z" fill="#9b7345"/></g><text x="25" y="975" fill="#a5926f" font-family="serif" font-size="12">坊巷游览图 · 游戏示意</text>`;
+}
+function portraitSvg(roleId){const index=gameData.roles.findIndex(r=>r.id===roleId),color=["#946b43","#3e7778","#71815b","#b68254","#aa6042","#606f86"][index]||"#946b43",prop=["钱","书","药","茶","工","舟"][index]||"书";return `<svg viewBox="0 0 70 82" role="img" aria-label="${esc(roleById(roleId).name)}示意形象"><rect width="70" height="82" rx="20" fill="#e9dfc7"/><path d="M11 82V57Q12 45 34 45T59 57v25" fill="${color}"/><path d="M21 50l14 21 13-21" fill="#e9e0c4"/><ellipse cx="35" cy="29" rx="16" ry="19" fill="#dfb789"/><path d="M19 28V18q0-15 16-15t16 15v10l-6-13-26 5" fill="#3f4940"/><path d="M26 29h3m12 0h3" stroke="#514336" stroke-width="2"/><path d="M31 38q4 3 8 0" stroke="#9b614a" fill="none"/><rect x="37" y="57" width="24" height="19" rx="3" fill="#efce8e"/><text x="49" y="71" text-anchor="middle" font-size="12" fill="#6b563a">${prop}</text></svg>`;}
+function animateActor(){const el=$("#player-portrait");el.classList.remove("pulse-action");void el.offsetWidth;el.classList.add("pulse-action");}
+function shopIcon(category){const objects={茶食:'<path d="M49 8h14v7q-7 7-14 0zM63 10q11 0 2 7M47 6h18" fill="#917251" stroke="#695b40"/><path d="M55 4q-3-3 1-5" fill="none" stroke="#a08b68"/>',药业:'<path d="M50 8h13l2 12H48z" fill="#7d8d65"/><path d="M52 5h9v4h-9" fill="#ac936a"/><path d="M52 13h10m-5-4v9" stroke="#e7e0b5"/>',文籍:'<path d="M44 6q7-4 12 0 7-4 13 0v14q-7-4-13 0-7-4-12 0z" fill="#f7ebc2" stroke="#526d68"/><path d="M56 6v13" stroke="#526d68"/>',衣饰:'<path d="M48 4l8 4 8-4 9 7-6 6-5-3v8H50v-8l-5 3-6-6z" fill="#b17764"/><path d="M49 5l7 9 7-9m-13 12h12" fill="none" stroke="#e5ceb1"/>',百工:'<path d="M43 17l14-14 10 12z" fill="#d4a967" stroke="#8b6742"/><path d="M43 17l8-8m-8 8 13-5" stroke="#956e40"/><path d="M61 15l7 6" stroke="#7d6540" stroke-width="3"/>',游艺:'<path d="M46 4q10-4 20 0v10q-10 14-20 0z" fill="#b66a47"/><path d="M49 9h4m6 0h4m-12 6q5 5 10 0" fill="none" stroke="#f7eac4" stroke-width="2"/>'};return `<svg viewBox="0 0 112 24" aria-hidden="true"><path d="M5 4h27v17H5zM80 4h27v17H80z" fill="#d1c29c"/><path d="M5 4h27M80 4h27" stroke="#697f72" stroke-width="5"/><path d="M11 9v9m7-9v9m7-9v9m62-9v9m7-9v9m7-9v9" stroke="#a8946e" stroke-width="2"/>${objects[category]||'<path d="M46 21V5h20v16m-14 0V10h8v11" fill="#a68b60" stroke="#756b4d"/>'}</svg>`;}
+function applyZoom(value,center=true){mapZoom=Math.max(.28,Math.min(1.35,value));$("#map-canvas").style.transform=`scale(${mapZoom})`;$("#map-sizer").style.width=`${1320*mapZoom}px`;$("#map-sizer").style.height=`${1000*mapZoom}px`;if(center&&state)scrollMapToward(state.location);}
+function scrollMapToward(id){const n=displayPosition(id),frame=$(".map-frame");frame.scrollTo({left:Math.max(0,n.x*mapZoom-frame.clientWidth/2),top:Math.max(0,n.y*mapZoom-frame.clientHeight/2),behavior:"smooth"});}
+function selectMapNode(id){showHistory(nodeById(id));state.selectedNodeId=id===state.location?null:adjacentNodes(state.location).includes(id)?id:null;render();if(id!==state.location&&!state.selectedNodeId)showToast("这里只能查看。请从地图下方“可直达”中选一步，再确认前往。");}
+function guideState(){if(state.ended)return {title:"七日已毕",description:"查看计分、史料索引与本局记录。",action:"result",label:"查看小结"};if(state.selectedNodeId){const edge=edgeBetween(state.location,state.selectedNodeId),q=movementQuote(state,edge),min=movementQuote(state,edge,true);return {title:`去${nodeById(state.selectedNodeId).name}`,description:"选中不扣行动，确认才会出发。",action:"move",target:state.selectedNodeId,label:`确认前往（${q.cost}行动）`,reward:min.cost<q.cost?`花1舒心可减为${min.cost}行动`:""};}
+ if(state.actions===0)return {title:"今日三次行动已用完",description:"让阿文行动，再看明日市情。",action:"end",label:"收市，进入晚市"};
+ const tutorial=!state.tutorialComplete&&state.mode==="beginner";let entry=state.activeMissions.find(e=>e.id===state.selectedMissionId),m=missionById(state.selectedMissionId);
+ if(tutorial){entry=state.activeMissions.find(e=>e.id===TUTORIAL_MISSION_ID);m=missionById(TUTORIAL_MISSION_ID);if(!entry&&!state.publicMissionIds.includes(m.id)){state.tutorialComplete=true;return guideState();}}
+ if((entry||m&&state.publicMissionIds.includes(m.id))&&(tutorial||state.selectedMissionId)){const target=entry?stepTarget(entry):m.startNode;if(target===state.location){return {step:tutorial?entry?"新手 3/3":"新手 1/3":"当前委托",title:entry?`${verb(missionNextStep(entry))}《${m.name}》`:`领取《${m.name}》`,description:tutorial?entry?"把招牌布幌交给掌柜，这一单就办成了。":"新幌就是招牌布幌。帮顾家伙计把它送到茶汤铺。":entry?stepText(entry):`领取后${m.deadlineRounds}轮内办完；信用要求${m.requiredCredit}。`,action:entry?"advance":"take",missionId:m.id,label:entry?"办理这一步（1行动）":"接下这一单（1行动）",reward:`办成得 ${rewardText(m)}`};}
+ const next=shortestPath(state.location,target)[0];return {step:tutorial?"新手 2/3":"所选委托",title:`下一站：${nodeById(target).name}`,description:tutorial?"从下面“可直达”找茶汤铺；也可以按右侧按钮走这一步。":`${entry?`剩${remainingRounds(entry)}轮`:`到店接单`}，可自己安排沿途行动。`,action:next?"move":null,target:next?.to,missionId:m.id,label:next?`去${nodeById(next.to).name}（${movementQuote(state,next.edge).cost}行动）`:"查看地图",reward:"带“荐”的地点只是下一步建议。"};}
+ return {title:"今天先做哪件事？",description:"打开委托簿挑差事，或点地图自由走走。",action:"tasks",label:"挑一份委托",quiet:true};}
+function renderCoach(){const g=guideState();$("#coach-card").classList.toggle("quiet",!!g.quiet);$("#coach-step").textContent=g.step||"自己安排";$("#coach-title").textContent=g.title;$("#coach-description").textContent=g.description;$("#coach-reward").textContent=g.reward||"";const b=$("#coach-action");b.textContent=g.label;b.dataset.action=g.action||"";b.dataset.target=g.target||"";b.dataset.mission=g.missionId||"";b.disabled=!g.action;}
+function renderMap(){const g=guideState(),reachable=adjacentNodes(state.location),tasks=new Set([...state.publicMissionIds.map(id=>missionById(id).startNode),...state.activeMissions.flatMap(stepTargets)]);
+ $("#route-layer").innerHTML=gameData.map.edges.filter(e=>e.from===state.location||e.to===state.location).map(e=>{const selected=state.selectedNodeId&&(e.from===state.selectedNodeId||e.to===state.selectedNodeId);return `<polyline class="route-line ${e.kind} ${selected?"selected-route":""}" points="${routePoints(e).map(p=>p.join(",")).join(" ")}"/>`;}).join("");
+ const icons={茶食:"茶",药业:"药",衣饰:"衣",文籍:"书",百工:"工",游艺:"戏",街坊:"坊",商业:"兑",器物:"金"};$("#map-nodes").innerHTML=gameData.map.nodes.map(n=>{const near=reachable.includes(n.id),p=n.display;return `<button class="map-node ${n.id===state.location?"current":""} ${near?"reachable":""} ${state.selectedNodeId===n.id?"selected":""} ${tasks.has(n.id)?"has-task":""}" data-node="${n.id}" style="left:${p.x}px;top:${p.y}px" aria-label="${esc(n.name)}，${n.id===state.location?"你在这里":near?`可直达，${movementQuote(state,edgeBetween(state.location,n.id)).cost}行动`:"点击查看史料"}"><span class="shop-icon">${shopIcon(n.tags[0])}</span><strong>${esc(n.name)}</strong><small>${esc(n.zone)}</small>${near?`<span class="move-cost">${movementQuote(state,edgeBetween(state.location,n.id)).cost}行动</span>`:""}${g.target===n.id&&n.id!==state.location?'<span class="recommend-badge">荐</span>':""}<span class="pawn-row">${state.location===n.id?'<i class="pawn human">你</i>':""}${state.ai.location===n.id?'<i class="pawn ai">文</i>':""}</span></button>`;}).join("");
+ $("#travel-list").innerHTML=reachable.map(id=>`<button data-node="${id}" class="${state.selectedNodeId===id?"selected":""}">${esc(nodeById(id).name)}<em>${movementQuote(state,edgeBetween(state.location,id)).cost}行动</em></button>`).join("");}
+function renderMissions(){const card=(m,e)=>{const rounds=e?remainingRounds(e):Math.min(m.deadlineRounds,8-state.round),estimate=estimatedMissionActions(m,state,e),available=state.actions+(rounds-1)*3;return `<button class="mission-card ${e?"owned":""} ${state.selectedMissionId===m.id?"selected":""}" data-mission="${m.id}"><span class="mission-badge">${e?"手中":state.aiIntentId===m.id?"阿文在盯这单":"公开"}</span><span class="deadline ${e&&rounds===1?"urgent":""}">${e?`剩${rounds}轮（含本轮）`:`接后${rounds}轮`}</span><h3>${esc(m.name)}</h3><p>${e?esc(stepText(e)):`${esc(nodeById(m.startNode).name)}接单`}</p><div class="mission-route">${m.steps.map((s,i)=>`<span class="${e&&i<e.stepIndex?"done":e&&i===e.stepIndex?"current":""}">${verb(s)}·${esc(s.node?nodeById(s.node).name:"湖山选两处")}</span>`).join("")}</div><div class="mission-meta">${rewardText(m)}<br>${e?"":`领取1行动${acceptanceCost(m)?`＋${acceptanceCost(m)}钱筹`:""} · 信用≥${m.requiredCredit}<br>`}按今日市情约需${estimate}行动${estimate>available?" · 时间紧，可能赶不及":""}</div></button>`;};$("#mission-list").innerHTML=(state.activeMissions.length?'<div class="stack-label">正在办的差事</div>'+state.activeMissions.map(e=>card(missionById(e.id),e)).join(""):"")+'<div class="stack-label">市面上的差事</div>'+state.publicMissionIds.map(id=>card(missionById(id),null)).join("");const due=state.activeMissions.filter(e=>remainingRounds(e)===1);$("#deadline-alert").textContent=due.length?`今日到期：${due.map(e=>missionById(e.id).name).join("、")}。收市前办完，逾期每单减1信用。`:"";$("#task-count").textContent=state.activeMissions.length;}
+function renderActions(){const m=missionById(state.selectedMissionId),entry=state.activeMissions.find(e=>e.id===state.selectedMissionId),s=storyAtLocation(state),step=entry&&missionNextStep(entry),cost=s?experienceCost(state,s):0;const bonus=state.roleId==="role_craft_apprentice"&&!state.roundFlags.roleBonus?1:0;
+ const choices={take:[m?`接《${m.name}》`:"先选公开委托",m?`1行动${acceptanceCost(m)?` · ${acceptanceCost(m)}钱筹`:""}`:"点击下方差事卡",!!m&&state.publicMissionIds.includes(m.id)&&m.startNode===state.location&&state.credit>=m.requiredCredit&&state.money>=acceptanceCost(m)&&state.activeMissions.length<2],deliver:[step?verb(step):"办理委托",step?`1行动${step.cost?.money?` · ${step.cost.money}钱筹`:""}`:"先选手中委托",!!entry&&stepTargets(entry).includes(state.location)&&state.money>=(step.cost?.money||0)],work:["做工",`1行动 → ${2+bonus}钱筹`,!state.roundFlags.workedNodes.includes(state.location)],experience:[s?"听店里的故事":"此地故事已收下",s?`1行动${cost?` · ${cost}钱筹`:" · 免费"} → ${s.category}`:"换处店铺听听",!!s&&state.money>=cost],help:["相帮街坊",`1行动 · 1钱 → ${1+(currentEvent().effect.firstHelpBonusCredit||0)}信用`,state.money>=1&&!state.roundFlags.helped],rest:["歇脚",`1行动 → ${isTea(nodeById(state.location))&&state.roleId==="role_teahouse_runner"?2:1}舒心`,!state.roundFlags.rested],inquire:["打听消息","1行动 → 明日市情",state.round<7&&!state.roundFlags.inquired]};
+ Object.entries(choices).forEach(([id,[label,info,allowed]])=>{const b=$(`#action-buttons [data-action='${id}']`);b.innerHTML=`${esc(label)}<small>${esc(info)}</small>`;b.disabled=!allowed||!canAct(state);});}
+function render(){if(!state)return;updateAiIntent();$("#round-label").textContent=`第 ${state.round} / 7 日`;$ ("#time-label").textContent=state.ended?"晚市结算":"晨市";$("#actions-label").textContent=`剩${state.actions}行动`;
+ $("#player-role").textContent=roleById(state.roleId).name;$("#role-ability").textContent=roleById(state.roleId).onlineAbility;$("#player-portrait").innerHTML=portraitSvg(state.roleId);$("#ai-portrait").innerHTML=portraitSvg(state.ai.roleId);
+ for(const [id,value] of [["money",state.money],["credit",state.credit],["ease",state.comfort],["story",`${categories(state).length}/7`]])$(`#${id}-value`).textContent=value;
+ $("#category-goal").textContent=`${state.stories.length}则故事 · ${categories(state).length>=4?"4类目标已达成":"取得4类可解除39分封顶"}`;$("#player-location").textContent=nodeById(state.location).name;$("#location-name").textContent=nodeById(state.location).name;$("#location-copy").textContent=`${nodeById(state.location).zone}。${storyAtLocation(state)?"可花1行动听这里的故事。":"可做工、歇脚或办理差事。"}`;
+ $("#ai-location").textContent=nodeById(state.ai.location).name;$("#ai-money").textContent=`钱筹 ${state.ai.money}`;$("#ai-credit").textContent=`信用 ${state.ai.credit}`;$("#ai-stories").textContent=`故事 ${categories(state.ai).length}/7类 · ${state.ai.stories.length}则`;
+ $("#ai-intent").textContent=state.ai.activeMissions.length?`正在办《${missionById(state.ai.activeMissions[0].id).name}》；剩${remainingRounds(state.ai.activeMissions[0])}轮。下一步：${stepText(state.ai.activeMissions[0],state.ai)}`:state.aiIntentId?`正盯着《${missionById(state.aiIntentId).name}》，准备去${nodeById(missionById(state.aiIntentId).startNode).name}。`:"暂时没有合适差事，准备听故事或就近做工。";
+ $("#ai-last-turn").innerHTML=state.aiNotes.map(t=>`<p>${esc(t)}</p>`).join("")||"尚未行动。你收市后，阿文开始行动。";$("#event-name").textContent=currentEvent().name;$("#event-copy").textContent=currentEvent().onlineDescription;$("#forecast-copy").textContent=state.forecastId?`明日：${gameData.cityEvents.find(e=>e.id===state.forecastId).name}`:state.round===7?"今天是最后一日。":"花1行动“打听消息”，提前看明日市情。";
+ $("#board-hint").textContent=state.selectedNodeId?"已选中地点，按“确认前往”出发。":"带费用的店铺可直达；连线经过不等于停靠。";$("#pocket-resources").textContent=`钱筹 ${state.money} · 信用 ${state.credit} · 舒心 ${state.comfort} · 故事 ${categories(state).length}/7类`;$("#log-copy").textContent=state.log;$("#end-turn-button").textContent=state.ended?"查看小结":state.actions?"结束本轮":"收市，让阿文行动";
+ $("#story-categories").innerHTML=gameData.storyCategories.map(c=>`<span class="story-category ${categories(state).includes(c)?"found":""}">${esc(c)}</span>`).join("");renderAspiration();renderCoach();renderMap();renderMissions();renderActions();saveGame();if(state.pendingStoryIds.length&&!$("#choice-dialog").open)void resolveStoryChoice();}
+
+function choose(title,copy,options,allowCancel=true){if(choiceResolver)return Promise.resolve(null);$("#choice-title").textContent=title;$("#choice-copy").textContent=copy;$("#choice-options").innerHTML=options.map(o=>`<button data-choice="${esc(o.value)}" ${o.disabled?"disabled":""}><strong>${esc(o.title)}</strong>${o.copy?`<small>${esc(o.copy)}</small>`:""}</button>`).join("");$("#choice-cancel").hidden=!allowCancel;$("#choice-dialog").dataset.allowCancel=String(allowCancel);$("#choice-dialog").showModal();return new Promise(resolve=>{choiceResolver=resolve;});}
+function settleChoice(value){const resolve=choiceResolver;choiceResolver=null;$("#choice-dialog").close();resolve?.(value);}
+async function resolveStoryChoice(){const options=state.pendingStoryIds.map(id=>gameData.stories.find(s=>s.id===id)).filter(Boolean);if(!options.length){state.pendingStoryIds=[];return;}const result=await choose("茶肆小坐，听哪则故事？","街坊谈起了两处见闻。选一则收入故事册，不再额外花行动。",options.map(s=>({value:s.id,title:`${s.title} · ${s.category}`,copy:s.fact})),false);const story=options.find(s=>s.id===result);if(!story)return;addStory(state,story);state.pendingStoryIds=[];log(`你在茶肆选了《${story.title}》（${story.category}故事）。`);render();showHistory(story);}
+function setView(view){document.body.dataset.view=view;$$('.view-tabs [data-view]').forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.view===view)));if(view==="map"&&state)requestAnimationFrame(()=>scrollMapToward(state.selectedNodeId||state.location));if(view==="tasks"&&window.innerWidth>739)$(".action-column").scrollTo({top:0,behavior:"smooth"});}
+function fillStartSelections(){$("#role-select").innerHTML=gameData.roles.map(r=>`<option value="${r.id}">${esc(r.name)}</option>`).join("");$("#aspiration-select").innerHTML=gameData.aspirations.map(a=>`<option value="${a.id}">${esc(a.name)}</option>`).join("");$("#role-select").value="role_merchant_apprentice";$("#aspiration-select").value="asp_many_trades";$("#role-table").innerHTML=gameData.roles.map(r=>`<tr><td>${esc(r.name)}<br><small>${esc(r.occupation)}</small></td><td>${esc(r.onlineAbility)}</td><td>${esc(r.example)}</td></tr>`).join("");$("#continue-button").hidden=!restoreGame();syncStartDescriptions();}
+function syncStartDescriptions(){$("#role-description").textContent=roleById($("#role-select").value).onlineAbility;$("#aspiration-description").textContent=aspirationById($("#aspiration-select").value).stages.join(" → ");$("#start-button").textContent=$('input[name="mode"]:checked').value==="beginner"?"开始第一单":"自由开局";}
+function openNewGameDialog(){fillStartSelections();$("#start-dialog").showModal();}
+function playerAction(id){if(!state||state.ended)return;if(id==="take")return takeMission();if(id==="deliver")return advanceMission();if(id==="inquire")return inquire();const oldStory=storyAtLocation(state),fn={work:workFor,experience:experienceFor,help:helpFor,rest:restFor}[id];if(fn?.(state)){render();animateActor();if(id==="experience")showHistory(oldStory);}else showToast("本轮暂时无法这样行动，看看费用与次数是否足够。");}
+function attachEvents(){for(const id of ["role-select","aspiration-select"])$(`#${id}`).addEventListener("change",syncStartDescriptions);$$('input[name="mode"]').forEach(x=>x.addEventListener("change",syncStartDescriptions));
+ $("#start-form").addEventListener("submit",e=>{e.preventDefault();state=initialState($("#role-select").value,$("#aspiration-select").value,$('input[name="mode"]:checked').value);log(state.mode==="beginner"?"顾家伙计托你送新幌。先接单，再去茶汤铺交付。":"自由开局：你可以自己挑选第一份委托。");$("#start-dialog").close();$("#history-drawer").hidden=true;setView("map");render();applyZoom(window.innerWidth<740?.85:Math.min(1,$(".map-frame").clientWidth/950));scrollMapToward(state.location);});
+ $("#continue-button").addEventListener("click",()=>{state=restoreGame();if(!state)return;$("#start-dialog").close();render();applyZoom(.85);if(state.ended)showResult();});
+ $("#start-dialog").addEventListener("cancel",e=>{if(!state)e.preventDefault();});
+ for(const id of ["map-nodes","travel-list"])$(`#${id}`).addEventListener("click",e=>{const b=e.target.closest("[data-node]");if(b&&state)selectMapNode(b.dataset.node);});
+ $("#mission-list").addEventListener("click",e=>{const b=e.target.closest("[data-mission]");if(!b)return;state.selectedMissionId=b.dataset.mission;state.selectedNodeId=null;render();showHistory(missionById(b.dataset.mission));setView("map");});
+ $("#coach-action").addEventListener("click",async e=>{const b=e.currentTarget,id=b.dataset.action;if(b.dataset.mission)state.selectedMissionId=b.dataset.mission;if(id==="move")await moveTo(b.dataset.target);if(id==="take")takeMission();if(id==="advance")advanceMission();if(id==="end")await endRound();if(id==="tasks")setView("tasks");if(id==="result")showResult();});
+ $("#action-buttons").addEventListener("click",e=>{const b=e.target.closest("[data-action]");if(b)playerAction(b.dataset.action);});$("#end-turn-button").addEventListener("click",()=>state?.ended?showResult():endRound());
+ $("#source-button").addEventListener("click",()=>{showHistory(nodeById(state.location));setView("map");});$("#event-source").addEventListener("click",()=>{showHistory(currentEvent());setView("map");});$("#history-close").addEventListener("click",()=>$("#history-drawer").hidden=true);
+ $("#rules-button").addEventListener("click",()=>$("#rules-dialog").showModal());$("#map-note-button").addEventListener("click",()=>{$("#rules-dialog").showModal();$("#map-basis").open=true;$("#map-basis").scrollIntoView();});$("#story-book-button").addEventListener("click",()=>{renderStoryBook();$("#story-dialog").showModal();});$("#log-button").addEventListener("click",()=>{$("#log-list").innerHTML=logsMarkup([...(state?.logs||[])].reverse());$("#log-dialog").showModal();});
+ $$(".close-dialog").forEach(b=>b.addEventListener("click",()=>b.closest("dialog").close()));$("#choice-options").addEventListener("click",e=>{const b=e.target.closest("[data-choice]");if(b&&!b.disabled)settleChoice(b.dataset.choice);});$("#choice-cancel").addEventListener("click",()=>settleChoice(null));$("#choice-dialog").addEventListener("cancel",e=>{e.preventDefault();if($("#choice-dialog").dataset.allowCancel==="true")settleChoice(null);});
+ $("#restart-button").addEventListener("click",async()=>{if(state&&!state.ended){const ok=await choose("重新出门？","开新局会覆盖当前浏览器内的进度。",[{value:"restart",title:"重新选身份"},{value:"keep",title:"留在这一局"}]);if(ok!=="restart")return;}openNewGameDialog();});$("#play-again-button").addEventListener("click",()=>{$("#result-dialog").close();openNewGameDialog();});$("#download-review").addEventListener("click",downloadReview);
+ $$('[data-view]').filter(b=>b.tagName==="BUTTON").forEach(b=>b.addEventListener("click",()=>setView(b.dataset.view)));$("#zoom-in").addEventListener("click",()=>applyZoom(mapZoom+.15));$("#zoom-out").addEventListener("click",()=>applyZoom(mapZoom-.15));$("#map-fit").addEventListener("click",()=>{const f=$(".map-frame");applyZoom(Math.min(f.clientWidth/1320,f.clientHeight/1000),false);f.scrollTo({top:0,left:0});});$("#map-center").addEventListener("click",()=>{applyZoom(Math.max(.85,mapZoom));scrollMapToward(state.location);});window.addEventListener("resize",()=>{if(state)scrollMapToward(state.location);});
+}
+async function init(){try{const response=await fetch("game-data.json?v=20260926-3");if(!response.ok)throw new Error("游戏资料没有加载完成");gameData=await response.json();gameData.map.edges.forEach(routePoints);drawMapArt();fillStartSelections();attachEvents();$("#action-reference").innerHTML="<p>做工：1行动得2钱筹，每店每日一次。听故事：1行动、通常1钱筹，收下一则未拥有的故事。帮街坊：1行动、1钱筹换1信用，每日一次。歇脚：1行动换1舒心，每日一次；茶肆小坐事件可再二选一听故事。接单和办理步骤各用1行动，具体物料费看委托卡。</p>";$("#start-dialog").showModal();}catch(error){document.body.innerHTML=`<main class="load-error"><h1>这次没有顺利开市</h1><p>${esc(error.message)}</p><button onclick="location.reload()">重新加载</button></main>`;console.error(error);}}
 init();

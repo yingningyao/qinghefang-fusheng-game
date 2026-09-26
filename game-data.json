@@ -1,13 +1,13 @@
 {
-  "schemaVersion": "1.0.0",
+  "schemaVersion": "3.0-online-feedback-20260926",
   "game": {
     "id": "qinghefang-life-online",
     "title": "清河坊浮生记：街区店铺故事收集",
     "subtitle": "知识图谱内容驱动的浏览器桌游",
     "timeSlice": "约1250年（淳祐末至宝祐初）",
     "players": {
-      "min": 2,
-      "max": 4
+      "human": 1,
+      "computer": 1
     },
     "rounds": 7,
     "actionsPerTurn": 3,
@@ -19,7 +19,6 @@
     "limits": {
       "credit": 6,
       "comfort": 3,
-      "cargo": 3,
       "activeCommissions": 2
     },
     "score": {
@@ -36,9 +35,9 @@
       "scoreCapIfBelowMinimum": 39
     },
     "turnLoop": [
-      "晨市：翻城市事件并补充公开委托",
-      "玩家依次各执行3个行动",
-      "晚市：检查期限、结算事件并推进轮次"
+      "晨市：你使用3行动",
+      "晚市：阿文使用3行动，双方按同一规则结算期限",
+      "推进一日，补满3行动并更新市情"
     ],
     "playerLoop": [
       "看市情",
@@ -68,26 +67,24 @@
       "id": "role_merchant_apprentice",
       "name": "行商学徒",
       "ability": {
-        "trigger": "每轮第一次完成跨区域交付",
-        "effect": {
-          "money": 1,
-          "cargoLimitBonus": 1
-        }
+        "firstCrossZoneCommissionBonusMoney": 1
       },
       "playStyle": "跑长线、安排多份订单",
       "historyStatus": [
         "游"
       ],
       "historyNote": "角色由南宋城市职业背景综合创作，不对应具名历史人物。",
-      "sources": []
+      "sources": [],
+      "occupation": "帮商铺跑腿送货",
+      "onlineAbility": "每轮首次办成跨地段委托，额外获得1钱筹。",
+      "example": "把水巷口的京果送到清河坊，报酬再加1。"
     },
     {
       "id": "role_bookshop_assistant",
       "name": "书铺帮工",
       "ability": {
-        "activeCommissionLimit": 3,
-        "trigger": "每轮第一次完成文籍行动",
-        "effect": "可重整1张公开委托"
+        "firstStoryCategoryDiscount": "文籍",
+        "moneyDiscount": 1
       },
       "playStyle": "规划任务、处理文书",
       "historyStatus": [
@@ -96,15 +93,17 @@
       "historyNote": "临安书铺和文籍行业可证，具体帮工身份与能力为游戏设定。",
       "sources": [
         "H01"
-      ]
+      ],
+      "occupation": "在书铺整理文籍",
+      "onlineAbility": "每轮首次在地点听取文籍故事，免1钱筹。",
+      "example": "在书铺听故事，照花1行动，不花钱。"
     },
     {
       "id": "role_pharmacy_assistant",
       "name": "药铺帮工",
       "ability": {
-        "trigger": "每轮第一次取得熟药类任务物品",
-        "discount": 1,
-        "minimumCost": 0
+        "firstStoryCategoryDiscount": "药业",
+        "moneyDiscount": 1
       },
       "playStyle": "药业任务、稳健经营",
       "historyStatus": [
@@ -113,22 +112,16 @@
       "historyNote": "临安具名熟药铺可证，角色并非真实店员，也不具有太医身份。",
       "sources": [
         "H01"
-      ]
+      ],
+      "occupation": "在药铺协助日常事务",
+      "onlineAbility": "每轮首次在地点听取药业故事，免1钱筹。",
+      "example": "去熟药铺听故事，可省下1钱筹。"
     },
     {
       "id": "role_teahouse_runner",
       "name": "茶肆跑堂",
       "ability": {
-        "trigger": "在茶肆完成委托",
-        "choose": [
-          {
-            "comfort": 1
-          },
-          {
-            "drawStories": 2,
-            "keepStories": 1
-          }
-        ]
+        "teahouseRestBonusComfort": 1
       },
       "playStyle": "社交、故事收集",
       "historyStatus": [
@@ -137,15 +130,16 @@
       "historyNote": "临安茶肆生活有文献背景，具体跑堂角色和选牌能力为游戏创作。",
       "sources": [
         "H01"
-      ]
+      ],
+      "occupation": "在茶肆招待客人",
+      "onlineAbility": "在茶肆歇脚时，舒心额外增加1（仍受上限3约束）。",
+      "example": "普通歇脚加1，在茶肆可加2。"
     },
     {
       "id": "role_craft_apprentice",
       "name": "手艺学徒",
       "ability": {
-        "trigger": "每轮第一次购买彩帛、漆器、扇物或冠饰任务物品",
-        "discount": 1,
-        "minimumCost": 0
+        "firstWorkBonusMoney": 1
       },
       "playStyle": "百工与衣饰任务",
       "historyStatus": [
@@ -154,24 +148,27 @@
       "historyNote": "彩帛、漆器、扇物和冠饰铺席可证，综合职业和折扣是玩法设定。",
       "sources": [
         "H01"
-      ]
+      ],
+      "occupation": "学习市井制作技艺",
+      "onlineAbility": "每轮第一次做工，额外获得1钱筹。",
+      "example": "本轮第一次做工挣3钱，之后每店做工挣2钱。"
     },
     {
       "id": "role_wharf_porter",
       "name": "河埠脚夫",
       "ability": {
-        "trigger": "每轮第一次经过桥河路线",
-        "effect": {
-          "movementCostReduction": 1
-        },
-        "remoteRouteStillCosts": true
+        "firstBridgeMovementDiscount": 1,
+        "immuneEvent": "event_long_rain"
       },
       "playStyle": "桥河运输、跨区送货",
       "historyStatus": [
         "游"
       ],
       "historyNote": "桥河运输符合城市生活背景，具体人物和免行动能力为游戏设定。",
-      "sources": []
+      "sources": [],
+      "occupation": "沿桥河搬运货物",
+      "onlineAbility": "每轮首次走桥河路线少花1行动；不受阴雨远行加费影响。",
+      "example": "普通桥河1行动，本轮首次可0行动通过。"
     }
   ],
   "aspirations": [
@@ -179,7 +176,7 @@
       "id": "asp_stable_living",
       "name": "安稳生计",
       "stages": [
-        "完成3份有钱筹报酬的委托",
+        "累计办成3份委托",
         "终局有8钱筹",
         "全局信用从未降到0"
       ],
@@ -249,7 +246,7 @@
       "id": "asp_keep_promises",
       "name": "守时守约",
       "stages": [
-        "连续完成2份限时委托",
+        "累计按时完成2份委托",
         "全局没有委托逾期",
         "完成4份委托"
       ],
@@ -302,7 +299,14 @@
           "游"
         ],
         "historyNote": "起点是便于开局的游戏汇合点，不主张其为一个具名历史设施。",
-        "sources": []
+        "sources": [],
+        "display": {
+          "x": 550,
+          "y": 420
+        },
+        "tags": [
+          "街坊"
+        ]
       },
       {
         "id": "loc_gu_cai_bo",
@@ -321,7 +325,11 @@
         "historyNote": "《梦粱录》清河坊条下可见顾家彩帛铺。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 620,
+          "y": 280
+        }
       },
       {
         "id": "loc_jiang_tea",
@@ -340,7 +348,11 @@
         "historyNote": "《梦粱录》清河坊条下可见蒋检阅茶汤铺。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 440,
+          "y": 280
+        }
       },
       {
         "id": "loc_ruan_fruit",
@@ -359,7 +371,11 @@
         "historyNote": "《梦粱录》把阮家京果铺列在水巷口。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 220,
+          "y": 420
+        }
       },
       {
         "id": "loc_yu_crown",
@@ -378,7 +394,11 @@
         "historyNote": "《梦粱录》把俞家冠子铺列在水巷口。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 90,
+          "y": 300
+        }
       },
       {
         "id": "loc_qi_color",
@@ -397,7 +417,11 @@
         "historyNote": "铺席名录支持店名及水巷口地段。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 90,
+          "y": 540
+        }
       },
       {
         "id": "loc_xu_thread",
@@ -416,7 +440,11 @@
         "historyNote": "铺席名录支持店名及水巷口地段。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 260,
+          "y": 590
+        }
       },
       {
         "id": "loc_gold_leaf",
@@ -435,7 +463,11 @@
         "historyNote": "馆藏金叶铭文保存“清河坊西阮六郎铺”信息；它不能与阮家京果铺合并。",
         "sources": [
           "H03"
-        ]
+        ],
+        "display": {
+          "x": 440,
+          "y": 550
+        }
       },
       {
         "id": "loc_lantern_market",
@@ -456,7 +488,11 @@
         "sources": [
           "H15",
           "H16"
-        ]
+        ],
+        "display": {
+          "x": 620,
+          "y": 590
+        }
       },
       {
         "id": "loc_pan_tea",
@@ -475,7 +511,11 @@
         "historyNote": "潘节干花茶坊属于市西坊南所列铺席。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 830,
+          "y": 420
+        }
       },
       {
         "id": "loc_exchange",
@@ -494,7 +534,11 @@
         "historyNote": "两家交引铺及其位置见于铺席记录，游戏不采用固定汇率或无限套利。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 970,
+          "y": 270
+        }
       },
       {
         "id": "loc_shu_paper",
@@ -513,7 +557,11 @@
         "historyNote": "舒家纸札铺店名见于临安铺席记录。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 790,
+          "y": 270
+        }
       },
       {
         "id": "loc_tong_candle",
@@ -532,7 +580,11 @@
         "historyNote": "童家桕烛铺见于五间楼前铺席记录。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 960,
+          "y": 570
+        }
       },
       {
         "id": "loc_renai_pharmacy",
@@ -551,7 +603,11 @@
         "historyNote": "仁爱堂熟药铺位于官巷前。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 1160,
+          "y": 420
+        }
       },
       {
         "id": "loc_jinyaojiu_pharmacy",
@@ -570,7 +626,11 @@
         "historyNote": "店名与官巷北位置可证，“太丞”不表示店主就是御医。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 1160,
+          "y": 270
+        }
       },
       {
         "id": "loc_powder_shops",
@@ -589,7 +649,11 @@
         "historyNote": "胡家与冯家粉心铺可归入官巷北铺席。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 1200,
+          "y": 580
+        }
       },
       {
         "id": "loc_zhang_books",
@@ -608,7 +672,11 @@
         "historyNote": "张官人诸史子文籍铺见于保祐坊前铺席记录。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 180,
+          "y": 760
+        }
       },
       {
         "id": "loc_peng_lacquer",
@@ -627,7 +695,11 @@
         "historyNote": "店名、温州漆器称谓及水巷桥河下地段可证。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 510,
+          "y": 760
+        }
       },
       {
         "id": "loc_qingbi_fan",
@@ -646,7 +718,11 @@
         "historyNote": "卡面采用审校名“青篦扇子铺”，不采用无据的“青麓”。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 820,
+          "y": 760
+        }
       },
       {
         "id": "loc_guo_medicine",
@@ -665,7 +741,11 @@
         "historyNote": "铺席记录支持郭医产药铺及沿桥下位置。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 1140,
+          "y": 760
+        }
       },
       {
         "id": "loc_chaotian_gate",
@@ -684,7 +764,11 @@
         "historyNote": "约1250年的朝天门是沿用旧名的废门遗迹，不是正常启闭或固定征税的城门。",
         "sources": [
           "H04"
-        ]
+        ],
+        "display": {
+          "x": 100,
+          "y": 100
+        }
       },
       {
         "id": "loc_zhongwa",
@@ -703,7 +787,11 @@
         "historyNote": "中瓦是临安瓦舍娱乐空间，内有王妈妈一窟鬼茶坊。",
         "sources": [
           "H01"
-        ]
+        ],
+        "display": {
+          "x": 350,
+          "y": 100
+        }
       },
       {
         "id": "loc_prefecture_school",
@@ -723,7 +811,11 @@
         "sources": [
           "H17",
           "H18"
-        ]
+        ],
+        "display": {
+          "x": 680,
+          "y": 100
+        }
       },
       {
         "id": "loc_shuangfeng",
@@ -743,7 +835,11 @@
         "sources": [
           "H05",
           "H06"
-        ]
+        ],
+        "display": {
+          "x": 1040,
+          "y": 100
+        }
       },
       {
         "id": "loc_fengle",
@@ -763,7 +859,11 @@
         "sources": [
           "H07",
           "H08"
-        ]
+        ],
+        "display": {
+          "x": 180,
+          "y": 920
+        }
       },
       {
         "id": "loc_jujing_garden",
@@ -784,7 +884,11 @@
         "sources": [
           "H09",
           "H10"
-        ]
+        ],
+        "display": {
+          "x": 380,
+          "y": 920
+        }
       },
       {
         "id": "loc_lvtai_temple",
@@ -804,7 +908,11 @@
         "historyNote": "嘉熙祷雨与封天泽侯可证，精确位置及后出庙额仍需谨慎。",
         "sources": [
           "H11"
-        ]
+        ],
+        "display": {
+          "x": 580,
+          "y": 920
+        }
       },
       {
         "id": "loc_taiping_old",
@@ -825,7 +933,11 @@
           "H12",
           "H13",
           "H14"
-        ]
+        ],
+        "display": {
+          "x": 900,
+          "y": 920
+        }
       },
       {
         "id": "loc_gaoting",
@@ -842,7 +954,11 @@
           "推"
         ],
         "historyNote": "皋亭山可作城外扩展方向，但“观桃始于南宋”等具体说法仍待专证。",
-        "sources": []
+        "sources": [],
+        "display": {
+          "x": 1190,
+          "y": 920
+        }
       }
     ],
     "edges": [
@@ -1254,7 +1370,8 @@
         "historyNote": "皋亭山是城外远行扩展，不主张与沿桥下直接相连。",
         "sources": []
       }
-    ]
+    ],
+    "layoutNote": "地段依文献分组，具体坐标与路线为可玩示意；城市扩展、湖山远行不是同比例地图。参考用户提供的铺席展陈照片理解街河关系，未将照片视为精确复原依据。"
   },
   "commissions": [
     {
@@ -1287,7 +1404,8 @@
       "historyNote": "《梦粱录》清河坊条下可见顾家彩帛铺与蒋检阅茶汤铺；顾家伙计在街口托送新幌以及具体交付过程为游戏情境。",
       "sources": [
         "H01"
-      ]
+      ],
+      "minimumNeutralActionsFromStart": 3
     },
     {
       "id": "com_tea_food_box",
@@ -1321,7 +1439,8 @@
       "historyNote": "阮家京果铺位于水巷口、蒋检阅茶汤铺位于清河坊；两店订单为游戏创作。",
       "sources": [
         "H01"
-      ]
+      ],
+      "minimumNeutralActionsFromStart": 4
     },
     {
       "id": "com_crown_to_zhongwa",
@@ -1356,7 +1475,8 @@
       "historyNote": "俞家冠子铺和中瓦可分别证实，戏班订购冠盒是合理游戏情境。",
       "sources": [
         "H01"
-      ]
+      ],
+      "minimumNeutralActionsFromStart": 5
     },
     {
       "id": "com_copy_catalogue",
@@ -1382,7 +1502,8 @@
       "historyNote": "文籍铺店名可证，誊书差事和报酬为游戏设计。",
       "sources": [
         "H01"
-      ]
+      ],
+      "minimumNeutralActionsFromStart": 2
     },
     {
       "id": "com_medicine_register",
@@ -1408,7 +1529,8 @@
       "historyNote": "仁爱堂熟药铺位置可证，整理药目是游戏中的日常劳动想象。",
       "sources": [
         "H01"
-      ]
+      ],
+      "minimumNeutralActionsFromStart": 2
     },
     {
       "id": "com_lacquer_to_winehouse",
@@ -1429,7 +1551,7 @@
           "node": "loc_shuangfeng"
         }
       ],
-      "deadlineRounds": 2,
+      "deadlineRounds": 3,
       "requiredCredit": 2,
       "rewards": {
         "money": 5,
@@ -1444,7 +1566,8 @@
       "sources": [
         "H01",
         "H05"
-      ]
+      ],
+      "minimumNeutralActionsFromStart": 6
     },
     {
       "id": "com_fan_to_teahouse",
@@ -1479,7 +1602,8 @@
       "historyNote": "两店名和地段可证，暑日茶坊订扇及奖励为游戏情境。",
       "sources": [
         "H01"
-      ]
+      ],
+      "minimumNeutralActionsFromStart": 3
     },
     {
       "id": "com_exchange_errand",
@@ -1500,7 +1624,7 @@
           }
         }
       ],
-      "deadlineRounds": 2,
+      "deadlineRounds": 3,
       "requiredCredit": 3,
       "rewards": {
         "money": 3,
@@ -1515,13 +1639,14 @@
       "sources": [
         "H03",
         "H01"
-      ]
+      ],
+      "minimumNeutralActionsFromStart": 6
     },
     {
       "id": "com_lantern_colors",
       "name": "元宵灯市备颜色",
       "type": "public",
-      "startNode": "loc_lantern_market",
+      "startNode": "loc_qi_color",
       "steps": [
         {
           "action": "pickup",
@@ -1533,7 +1658,7 @@
           "node": "loc_lantern_market"
         }
       ],
-      "deadlineRounds": 2,
+      "deadlineRounds": 3,
       "requiredCredit": 1,
       "rewards": {
         "money": 2,
@@ -1549,13 +1674,14 @@
       "sources": [
         "H01",
         "H15"
-      ]
+      ],
+      "minimumNeutralActionsFromStart": 6
     },
     {
       "id": "com_lantern_paper",
       "name": "元宵灯市备纸札",
       "type": "public",
-      "startNode": "loc_lantern_market",
+      "startNode": "loc_shu_paper",
       "steps": [
         {
           "action": "pickup",
@@ -1567,7 +1693,7 @@
           "node": "loc_lantern_market"
         }
       ],
-      "deadlineRounds": 2,
+      "deadlineRounds": 3,
       "requiredCredit": 1,
       "rewards": {
         "money": 2,
@@ -1583,13 +1709,14 @@
       "sources": [
         "H01",
         "H15"
-      ]
+      ],
+      "minimumNeutralActionsFromStart": 6
     },
     {
       "id": "com_lantern_candles",
       "name": "元宵灯市备桕烛",
       "type": "public",
-      "startNode": "loc_lantern_market",
+      "startNode": "loc_tong_candle",
       "steps": [
         {
           "action": "pickup",
@@ -1605,7 +1732,7 @@
           "node": "loc_lantern_market"
         }
       ],
-      "deadlineRounds": 2,
+      "deadlineRounds": 4,
       "requiredCredit": 2,
       "rewards": {
         "money": 3,
@@ -1623,7 +1750,8 @@
         "H01",
         "H15",
         "H16"
-      ]
+      ],
+      "minimumNeutralActionsFromStart": 8
     },
     {
       "id": "com_west_lake_day",
@@ -1645,7 +1773,7 @@
           ]
         }
       ],
-      "deadlineRounds": 2,
+      "deadlineRounds": 4,
       "requiredCredit": 1,
       "rewards": {
         "money": 3,
@@ -1665,7 +1793,8 @@
         "H09",
         "H10",
         "H11"
-      ]
+      ],
+      "minimumNeutralActionsFromStart": 7
     }
   ],
   "stories": [
@@ -1933,14 +2062,15 @@
       "name": "节前赶市",
       "duration": "round",
       "effect": {
-        "firstSeasonalCommissionBonusMoney": 1
+        "firstCommissionBonusMoney": 1
       },
       "historyStatus": [
         "推",
         "游"
       ],
       "historyNote": "节令赶市符合城市生活背景，额外钱筹是游戏数值。",
-      "sources": []
+      "sources": [],
+      "onlineDescription": "双方各自本轮第一次办成委托，额外获得1钱筹。"
     },
     {
       "id": "event_crowded_bridge",
@@ -1955,7 +2085,8 @@
         "游"
       ],
       "historyNote": "桥河交通背景可信，拥挤发生与行动成本由游戏设定。",
-      "sources": []
+      "sources": [],
+      "onlineDescription": "双方各自本轮首次走桥河路线多花1行动；可花1舒心抵消。"
     },
     {
       "id": "event_teahouse_rest",
@@ -1971,16 +2102,16 @@
       ],
       "historyNote": "临安茶肆社交与休憩背景可证，抽牌效果为玩法设计。",
       "sources": [
-        "H01"
-      ]
+        "H19"
+      ],
+      "onlineDescription": "双方各自首次在茶肆歇脚，从两则尚未拥有的故事中选一则；剩余不足两则时按余量提供。"
     },
     {
       "id": "event_fire_watch",
       "name": "街坊防火",
       "duration": "round",
       "effect": {
-        "revealPublicCommission": true,
-        "participantCreditOnSuccess": 1
+        "firstHelpBonusCredit": 1
       },
       "historyStatus": [
         "史",
@@ -1989,23 +2120,25 @@
       "historyNote": "临安有巡铺、望楼与防隅安排，具体公共任务不对应某次真实火灾。",
       "sources": [
         "H16"
-      ]
+      ],
+      "onlineDescription": "双方本轮第一次相帮街坊，额外增加1信用。"
     },
     {
       "id": "event_washe_show",
       "name": "瓦舍演出日",
       "duration": "round",
       "effect": {
-        "entertainmentCommissionActionDiscount": 1
+        "freeStoryNode": "loc_zhongwa"
       },
       "historyStatus": [
         "史",
         "游"
       ],
-      "historyNote": "瓦舍演出活动可作为城市背景，行动减免为游戏效果。",
+      "historyNote": "瓦舍演出有文献背景；指定演出日及免钱筹是游戏安排。",
       "sources": [
         "H01"
-      ]
+      ],
+      "onlineDescription": "双方在中瓦听地点故事免钱筹，仍花1行动。"
     },
     {
       "id": "event_long_rain",
@@ -2022,7 +2155,8 @@
         "游"
       ],
       "historyNote": "阴雨是一般天气情境，不指向某场有确切年代的灾害。",
-      "sources": []
+      "sources": [],
+      "onlineDescription": "双方本轮首次走远行路线多花1行动；河埠脚夫免加费。"
     },
     {
       "id": "event_rain_clears",
@@ -2036,35 +2170,28 @@
         "游"
       ],
       "historyNote": "雨后开市是生活化情境，舒心奖励为游戏数值。",
-      "sources": []
+      "sources": [],
+      "onlineDescription": "双方各自本轮第一次做工，额外增加1舒心。"
     },
     {
       "id": "event_lantern_preparation",
       "name": "元宵灯市备料",
-      "duration": "twoRounds",
+      "duration": "round",
       "effect": {
-        "requiredSupplyTypes": 3,
-        "availableSupplyTypes": [
-          "纸札",
-          "颜色",
-          "桕烛",
-          "茶汤"
-        ],
-        "requiresFirePatrol": true,
-        "failureMoneyLossPerPlayer": 1,
-        "successStoryCategory": "街坊"
+        "firstHelpStoryCategory": "街坊"
       },
       "historyStatus": [
         "史",
         "推",
         "游"
       ],
-      "historyNote": "元宵灯火、夜游和防火制度可证，四家联供、进度和奖惩均为游戏编排。",
+      "historyNote": "元宵灯火、夜游与防火安排有文献背景；特定商铺共同备料和故事奖励为游戏创作。",
       "sources": [
         "H01",
         "H15",
         "H16"
-      ]
+      ],
+      "onlineDescription": "双方本轮第一次相帮街坊，另得一则街坊故事。本在线版为一轮互助，无跨轮集资或失败扣钱。"
     }
   ],
   "sources": {
@@ -2084,6 +2211,111 @@
     "H15": "《梦粱录》卷一“元宵”",
     "H16": "《梦粱录》卷十“防隅巡警”",
     "H17": "《梦粱录》卷十五与《乾道临安志》卷二",
-    "H18": "杭州市文物考古所南宋临安府治、府学及严官巷御街遗址材料"
+    "H18": "杭州市文物考古所南宋临安府治、府学及严官巷御街遗址材料",
+    "H19": "吴自牧《梦粱录》卷十六“茶肆”"
+  },
+  "sourceDetails": {
+    "H01": {
+      "title": "吴自牧《梦粱录》卷十三",
+      "locator": "“铺席”：按水巷口、清河坊、市西坊南、官巷等位置语查具名铺席。",
+      "url": "https://zh.wikisource.org/wiki/夢粱錄_(四庫全書本)/卷13",
+      "note": "底本为四库全书本电子转录。通行简体店名与底本字形可能有异文；不据名录推定精确门牌和供应关系。"
+    },
+    "H03": {
+      "title": "“清河坊西阮六郎铺”金叶实物",
+      "locator": "金叶铺号铭文；原稿标杭州博物馆馆藏资料。",
+      "note": "当前资料未附藏品编号、原始出土信息或馆藏条目直链，需补核；不能与阮家京果铺合并。"
+    },
+    "H04": {
+      "title": "《梦粱录》城门相关材料",
+      "locator": "朝天门旧名及废门状态；原资料卷次未详。",
+      "note": "条目待补核，不推定其在约1250年正常启闭。"
+    },
+    "H05": {
+      "title": "《梦粱录》卷十六",
+      "locator": "“酒肆”：坝头西市坊双凤楼。",
+      "url": "https://zh.wikisource.org/wiki/夢粱錄_(四庫全書本)/卷16"
+    },
+    "H06": {
+      "title": "周密《武林旧事》卷六",
+      "locator": "“酒楼”：官库、市楼等名录。",
+      "url": "https://zh.wikisource.org/wiki/武林舊事_(四庫全書本)/卷06"
+    },
+    "H07": {
+      "title": "耐得翁《都城纪胜》",
+      "locator": "酒肆相关记述：丰乐楼及太平楼火废。",
+      "url": "https://zh.wikisource.org/wiki/都城紀勝"
+    },
+    "H08": {
+      "title": "《浙江通志》卷四十",
+      "locator": "所引临安志丰乐楼沿革材料。",
+      "url": "https://zh.wikisource.org/wiki/浙江通志_(四庫全書本)/卷040"
+    },
+    "H09": {
+      "title": "王应麟《玉海》卷一百七十一",
+      "locator": "淳熙年间聚景园游幸相关记述。",
+      "url": "https://zh.wikisource.org/wiki/玉海_(四庫全書本)/卷171",
+      "note": "早期游幸不能直接证明约1250年的开放方式。"
+    },
+    "H10": {
+      "title": "《梦粱录》卷十九及《西湖百咏》",
+      "locator": "聚景园沿革与荒圮相关记述。",
+      "url": "https://zh.wikisource.org/wiki/夢粱錄/卷19",
+      "note": "材料年代不同，约1250年的实际开放条件未详；游戏仅在园外行动。"
+    },
+    "H11": {
+      "title": "《武林旧事》履泰将军庙材料",
+      "locator": "嘉熙祷雨、天泽侯相关记述；原资料未附卷页。",
+      "note": "条目、传本异文及精确地望待补核；不将祷雨应验写为可验证事实。"
+    },
+    "H12": {
+      "title": "庄绰《鸡肋编》卷下",
+      "locator": "张俊营太平楼、花腿相关记述。",
+      "url": "https://zh.wikisource.org/wiki/雞肋編/卷下"
+    },
+    "H13": {
+      "title": "《宋名臣言行录》别集下卷六",
+      "locator": "杨沂中运石、张绚劾奏相关记述。",
+      "url": "https://zh.wikisource.org/wiki/宋名臣言行錄_(四庫全書本)/別集下卷06"
+    },
+    "H14": {
+      "title": "《都城纪胜》",
+      "locator": "太平楼等火后废弃状态的记述。",
+      "url": "https://zh.wikisource.org/wiki/都城紀勝"
+    },
+    "H15": {
+      "title": "《梦粱录》卷一",
+      "locator": "“元宵”：灯火、夜游及节令城市生活。",
+      "url": "https://zh.wikisource.org/wiki/夢粱錄_(四庫全書本)/卷01"
+    },
+    "H16": {
+      "title": "《梦粱录》卷十",
+      "locator": "“防隅巡警”：巡铺、望楼等防火安排。",
+      "url": "https://zh.wikisource.org/wiki/夢粱錄_(四庫全書本)/卷10"
+    },
+    "H17": {
+      "title": "《梦粱录》卷十五；《乾道临安志》卷二",
+      "locator": "“学校”等府学沿革材料；分清桥东早期与桥西后期。",
+      "url": "https://zh.wikisource.org/wiki/夢粱錄_(四庫全書本)/卷15",
+      "note": "不可把不同时期校址合并为同一门牌。"
+    },
+    "H18": {
+      "title": "杭州市文物考古所《南宋临安府治与府学遗址》",
+      "locator": "文物出版社，2013年；另参严官巷御街遗迹介绍。",
+      "url": "https://www.hzzx.gov.cn/hzzx/content/2010-10/26/content_5140036.htm",
+      "note": "链接是严官巷遗迹介绍。报告页码待补；不据此复原每家店的位置。"
+    },
+    "H19": {
+      "title": "《梦粱录》卷十六",
+      "locator": "“茶肆”：临安茶肆交往、聚会及沿门点送茶水传语。",
+      "url": "https://zh.wikisource.org/wiki/夢粱錄_(四庫全書本)/卷16",
+      "note": "支持茶肆社交背景，不证明古人能提前得知游戏中的下一日市情。"
+    }
+  },
+  "designNotes": {
+    "forecast": "打听消息预览下一事件为策略机制；茶肆传语只有生活背景支持。",
+    "lantern": "在线版采单轮互助，取消原数据中未实现的两轮公共集资及失败罚款。",
+    "art": "店铺街景和六职业形象为原创示意，非宋人服饰或建筑精确复原。",
+    "save": "支持读取旧版v2存档；从更新后的行动起适用统一规则。"
   }
 }
