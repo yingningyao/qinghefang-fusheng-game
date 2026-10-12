@@ -3,14 +3,14 @@
   "game": {
     "id": "qinghefang-life-online",
     "title": "清河坊浮生记：街区店铺故事收集",
-    "subtitle": "知识图谱内容驱动的浏览器桌游",
+    "subtitle": "七日临安，与阿文争一回好生意",
     "timeSlice": "约1250年（淳祐末至宝祐初）",
     "players": {
       "human": 1,
       "computer": 1
     },
     "rounds": 7,
-    "actionsPerTurn": 3,
+    "actionsPerTurn": 4,
     "startingResources": {
       "money": 5,
       "credit": 1,
@@ -22,29 +22,28 @@
       "activeCommissions": 2
     },
     "score": {
-      "aspirationStage": 8,
-      "aspirationMax": 24,
-      "storyEach": 2,
-      "storyMax": 12,
+      "commissionEach": 4,
+      "hotCommissionExtra": 3,
+      "aspirationStage": 3,
+      "aspirationMax": 9,
+      "storyEach": 0,
       "creditEach": 2,
       "creditMax": 12,
       "moneyEach": 1,
-      "moneyMax": 12,
-      "totalMax": 60,
-      "minimumStoryCategories": 4,
-      "scoreCapIfBelowMinimum": 39
+      "moneyMax": 20,
+      "expiredEach": -2
     },
     "turnLoop": [
-      "晨市：你使用3行动",
-      "晚市：阿文使用3行动，双方按同一规则结算期限",
-      "推进一日，补满3行动并更新市情"
+      "每日双方各有4行动；你办一件事后，阿文使用剩余行动回应一次",
+      "单数日你先手，双数日阿文先手；订单、备料、脚夫名额双方共用",
+      "收工后阿文完成剩余行动，再结算期限；次日放出3份订单并补充备料和2次脚夫名额"
     ],
     "playerLoop": [
-      "看市情",
-      "选委托",
-      "走街区",
-      "办事情",
-      "收故事"
+      "看市情与阿文动向",
+      "抢订单、算费用",
+      "备货、安排交付",
+      "争取履约和志向得分",
+      "途中收录见闻"
     ]
   },
   "historyLegend": {
@@ -83,8 +82,8 @@
       "id": "role_bookshop_assistant",
       "name": "书铺帮工",
       "ability": {
-        "firstStoryCategoryDiscount": "文籍",
-        "moneyDiscount": 1
+        "firstCommissionCategoryBonus": "文籍",
+        "bonusMoney": 2
       },
       "playStyle": "规划任务、处理文书",
       "historyStatus": [
@@ -102,8 +101,8 @@
       "id": "role_pharmacy_assistant",
       "name": "药铺帮工",
       "ability": {
-        "firstStoryCategoryDiscount": "药业",
-        "moneyDiscount": 1
+        "firstCommissionCategoryBonus": "药业",
+        "bonusMoney": 2
       },
       "playStyle": "药业任务、稳健经营",
       "historyStatus": [
@@ -2682,7 +2681,7 @@
     "forecast": "打听消息预览下一事件为策略机制；茶肆传语只有生活背景支持。",
     "lantern": "在线版采单轮互助，取消原数据中未实现的两轮公共集资及失败罚款。",
     "art": "店铺街景和六职业形象为原创示意，非宋人服饰或建筑精确复原。",
-    "save": "支持读取旧版v2存档；从更新后的行动起适用统一规则。"
+    "save": "支持继续v2、v3存档，原存档保留；v4使用轮流行动、共享市集与经营计分。"
   },
   "historyAtlas": {
     "version": "2026.10.12",
