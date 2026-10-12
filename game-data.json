@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "3.1-history-20261012",
+  "schemaVersion": "4.0-competition-20261012",
   "game": {
     "id": "qinghefang-life-online",
     "title": "清河坊浮生记：街区店铺故事收集",
@@ -95,8 +95,8 @@
         "H01"
       ],
       "occupation": "在书铺整理文籍",
-      "onlineAbility": "每轮首次在地点听取文籍故事，免1钱筹。",
-      "example": "在书铺听故事，照花1行动，不花钱。"
+      "onlineAbility": "每日首次办成文籍委托，额外获得2钱筹。",
+      "example": "把纸札送到书铺，可多得2钱。"
     },
     {
       "id": "role_pharmacy_assistant",
@@ -114,8 +114,8 @@
         "H01"
       ],
       "occupation": "在药铺协助日常事务",
-      "onlineAbility": "每轮首次在地点听取药业故事，免1钱筹。",
-      "example": "去熟药铺听故事，可省下1钱筹。"
+      "onlineAbility": "每日首次办成药业委托，额外获得2钱筹。",
+      "example": "办好药目委托，可多得2钱。"
     },
     {
       "id": "role_teahouse_runner",
@@ -176,9 +176,9 @@
       "id": "asp_stable_living",
       "name": "安稳生计",
       "stages": [
-        "累计办成3份委托",
+        "办成2份委托",
         "终局有8钱筹",
-        "全局信用从未降到0"
+        "信用从未降到0"
       ],
       "historyStatus": [
         "游"
@@ -190,9 +190,9 @@
       "id": "asp_many_trades",
       "name": "百业通达",
       "stages": [
-        "取得3类故事印记",
-        "累计做工4次",
-        "完成1份跨区域委托"
+        "办成2类行业委托",
+        "在3处不同地点做工",
+        "办成2份跨区委托"
       ],
       "historyStatus": [
         "游"
@@ -205,8 +205,8 @@
       "name": "街坊有信",
       "stages": [
         "信用达到4",
-        "完成1份委托",
-        "累计相帮街坊2次"
+        "办成3份委托",
+        "相帮街坊2次"
       ],
       "historyStatus": [
         "游"
@@ -218,9 +218,9 @@
       "id": "asp_walk_the_city",
       "name": "走遍坊巷",
       "stages": [
-        "到访5个不同地点",
-        "到访4个不同区域",
-        "在3个区域取得故事"
+        "到访5个地点",
+        "走过4个地段",
+        "办成2份跨区委托"
       ],
       "historyStatus": [
         "游"
@@ -232,9 +232,9 @@
       "id": "asp_master_craft",
       "name": "手艺立身",
       "stages": [
-        "累计做工2次",
-        "累计做工4次",
-        "累计做工6次"
+        "做工2次",
+        "办成1份抢手单",
+        "办成3份委托"
       ],
       "historyStatus": [
         "游"
@@ -246,9 +246,9 @@
       "id": "asp_keep_promises",
       "name": "守时守约",
       "stages": [
-        "累计按时完成2份委托",
-        "全局没有委托逾期",
-        "完成4份委托"
+        "按时办成2份委托",
+        "没有委托逾期",
+        "办成4份委托"
       ],
       "historyStatus": [
         "游"
@@ -260,9 +260,9 @@
       "id": "asp_leisure",
       "name": "市井闲情",
       "stages": [
-        "累计获得3枚舒心",
-        "到访茶肆和游艺场所",
-        "终局仍保留2枚舒心"
+        "累计获得3舒心",
+        "到访茶肆和游艺去处",
+        "办成2单且保留2舒心"
       ],
       "historyStatus": [
         "游"
@@ -275,8 +275,8 @@
       "name": "乐助邻里",
       "stages": [
         "相帮街坊1次",
-        "相帮街坊2次",
-        "相帮街坊3次"
+        "办成2份委托",
+        "相帮3次且信用达到4"
       ],
       "historyStatus": [
         "游"
@@ -303,8 +303,8 @@
           "N01"
         ],
         "display": {
-          "x": 550,
-          "y": 420
+          "x": 580,
+          "y": 1030
         },
         "tags": [
           "街坊"
@@ -333,8 +333,8 @@
           "N01"
         ],
         "display": {
-          "x": 620,
-          "y": 280
+          "x": 720,
+          "y": 880
         },
         "recordIds": [
           "qinghe"
@@ -361,8 +361,8 @@
           "N05"
         ],
         "display": {
-          "x": 440,
-          "y": 280
+          "x": 420,
+          "y": 880
         },
         "recordIds": [
           "qinghe",
@@ -389,8 +389,8 @@
           "N01"
         ],
         "display": {
-          "x": 220,
-          "y": 420
+          "x": 600,
+          "y": 1240
         },
         "recordIds": [
           "shuixiang"
@@ -417,8 +417,8 @@
           "N02"
         ],
         "display": {
-          "x": 90,
-          "y": 300
+          "x": 410,
+          "y": 1250
         },
         "recordIds": [
           "shuixiang",
@@ -445,8 +445,8 @@
           "N01"
         ],
         "display": {
-          "x": 90,
-          "y": 540
+          "x": 750,
+          "y": 1260
         },
         "recordIds": [
           "shuixiang"
@@ -472,8 +472,8 @@
           "N01"
         ],
         "display": {
-          "x": 260,
-          "y": 590
+          "x": 750,
+          "y": 1420
         },
         "recordIds": [
           "shuixiang"
@@ -498,8 +498,8 @@
           "H03"
         ],
         "display": {
-          "x": 440,
-          "y": 550
+          "x": 420,
+          "y": 1050
         },
         "recordIds": []
       },
@@ -525,8 +525,8 @@
           "N08"
         ],
         "display": {
-          "x": 620,
-          "y": 590
+          "x": 720,
+          "y": 1080
         },
         "recordIds": [
           "fire"
@@ -552,8 +552,8 @@
           "N05"
         ],
         "display": {
-          "x": 830,
-          "y": 420
+          "x": 600,
+          "y": 600
         },
         "recordIds": [
           "tea"
@@ -580,8 +580,8 @@
           "N01"
         ],
         "display": {
-          "x": 970,
-          "y": 270
+          "x": 420,
+          "y": 460
         },
         "recordIds": [
           "exchange"
@@ -606,8 +606,8 @@
           "H01"
         ],
         "display": {
-          "x": 790,
-          "y": 270
+          "x": 420,
+          "y": 600
         },
         "recordIds": []
       },
@@ -631,8 +631,8 @@
           "N01"
         ],
         "display": {
-          "x": 960,
-          "y": 570
+          "x": 740,
+          "y": 460
         },
         "recordIds": [
           "candle"
@@ -658,8 +658,8 @@
           "N01"
         ],
         "display": {
-          "x": 1160,
-          "y": 420
+          "x": 600,
+          "y": 340
         },
         "recordIds": [
           "guangxiang"
@@ -685,8 +685,8 @@
           "N01"
         ],
         "display": {
-          "x": 1160,
-          "y": 270
+          "x": 470,
+          "y": 200
         },
         "recordIds": [
           "guangxiang"
@@ -712,8 +712,8 @@
           "N01"
         ],
         "display": {
-          "x": 1200,
-          "y": 580
+          "x": 720,
+          "y": 200
         },
         "recordIds": [
           "guangxiang"
@@ -739,8 +739,8 @@
           "N01"
         ],
         "display": {
-          "x": 180,
-          "y": 760
+          "x": 900,
+          "y": 1470
         },
         "recordIds": [
           "books"
@@ -767,8 +767,8 @@
           "N07"
         ],
         "display": {
-          "x": 510,
-          "y": 760
+          "x": 900,
+          "y": 1160
         },
         "recordIds": [
           "lacquer"
@@ -788,15 +788,15 @@
         "historyStatus": [
           "史"
         ],
-        "historyNote": "来稿校名采用“青篦扇子铺”，归炭桥河下；电子转录有缺字、误字，底本字形仍待影印本复核。",
+        "historyNote": "“青篦扇子铺”归炭桥河下；店名字形在电子转录中有差异，仍待影印本复核。",
         "sources": [
           "H01",
           "N01",
           "N04"
         ],
         "display": {
-          "x": 820,
-          "y": 760
+          "x": 900,
+          "y": 620
         },
         "recordIds": [
           "fan"
@@ -821,14 +821,14 @@
           "H01"
         ],
         "display": {
-          "x": 1140,
-          "y": 760
+          "x": 900,
+          "y": 260
         },
         "recordIds": []
       },
       {
         "id": "loc_chaotian_gate",
-        "name": "朝天门旧废门遗迹",
+        "name": "朝天门",
         "zone": "朝天门内外",
         "kind": "oldSite",
         "tags": [
@@ -846,8 +846,8 @@
           "H16"
         ],
         "display": {
-          "x": 100,
-          "y": 100
+          "x": 580,
+          "y": 1540
         },
         "recordIds": [
           "fire"
@@ -874,8 +874,8 @@
           "N03"
         ],
         "display": {
-          "x": 350,
-          "y": 100
+          "x": 270,
+          "y": 820
         },
         "recordIds": [
           "night",
@@ -903,8 +903,8 @@
           "H18"
         ],
         "display": {
-          "x": 680,
-          "y": 100
+          "x": 190,
+          "y": 1070
         },
         "recordIds": []
       },
@@ -928,8 +928,8 @@
           "H06"
         ],
         "display": {
-          "x": 1040,
-          "y": 100
+          "x": 190,
+          "y": 610
         },
         "recordIds": []
       },
@@ -954,7 +954,7 @@
         ],
         "display": {
           "x": 180,
-          "y": 920
+          "y": 420
         },
         "recordIds": []
       },
@@ -979,8 +979,8 @@
           "H10"
         ],
         "display": {
-          "x": 380,
-          "y": 920
+          "x": 180,
+          "y": 1300
         },
         "recordIds": []
       },
@@ -1004,8 +1004,8 @@
           "H11"
         ],
         "display": {
-          "x": 580,
-          "y": 920
+          "x": 180,
+          "y": 1460
         },
         "recordIds": []
       },
@@ -1030,8 +1030,8 @@
           "H14"
         ],
         "display": {
-          "x": 900,
-          "y": 920
+          "x": 270,
+          "y": 970
         },
         "recordIds": []
       },
@@ -1052,8 +1052,8 @@
         "historyNote": "皋亭山可作城外扩展方向，但“观桃始于南宋”等具体说法仍待专证。",
         "sources": [],
         "display": {
-          "x": 1190,
-          "y": 920
+          "x": 920,
+          "y": 90
         },
         "recordIds": []
       }
@@ -1468,7 +1468,10 @@
         "sources": []
       }
     ],
-    "layoutNote": "地段依文献分组，具体坐标与路线为可玩示意；城市扩展、湖山远行不是同比例地图。参考用户提供的铺席展陈照片理解街河关系，未将照片视为精确复原依据。"
+    "layoutNote": "御街上北下南，店铺按文献地段编排；具体门牌、距离与可行路线是游戏示意。湖山、旧闻与城外地点按主题展示，不作为精确定位。",
+    "orientation": "north-up",
+    "width": 1100,
+    "height": 1660
   },
   "commissions": [
     {
@@ -1490,7 +1493,7 @@
       "deadlineRounds": 2,
       "requiredCredit": 1,
       "rewards": {
-        "money": 3,
+        "money": 4,
         "credit": 1,
         "storyCategory": "茶食"
       },
@@ -1526,7 +1529,7 @@
       "deadlineRounds": 2,
       "requiredCredit": 1,
       "rewards": {
-        "money": 2,
+        "money": 5,
         "storyCategory": "茶食"
       },
       "historyStatus": [
@@ -1561,7 +1564,7 @@
       "deadlineRounds": 2,
       "requiredCredit": 1,
       "rewards": {
-        "money": 4,
+        "money": 6,
         "credit": 1,
         "storyCategory": "衣饰"
       },
@@ -1589,7 +1592,7 @@
       "deadlineRounds": 1,
       "requiredCredit": 0,
       "rewards": {
-        "money": 2,
+        "money": 3,
         "storyCategory": "文籍"
       },
       "historyStatus": [
@@ -1616,7 +1619,7 @@
       "deadlineRounds": 1,
       "requiredCredit": 0,
       "rewards": {
-        "money": 2,
+        "money": 3,
         "storyCategory": "药业"
       },
       "historyStatus": [
@@ -1651,7 +1654,7 @@
       "deadlineRounds": 3,
       "requiredCredit": 2,
       "rewards": {
-        "money": 5,
+        "money": 7,
         "credit": 1,
         "storyCategory": "百工"
       },
@@ -1688,7 +1691,7 @@
       "deadlineRounds": 2,
       "requiredCredit": 1,
       "rewards": {
-        "money": 3,
+        "money": 4,
         "comfort": 1,
         "storyCategory": "百工"
       },
@@ -1724,7 +1727,7 @@
       "deadlineRounds": 3,
       "requiredCredit": 3,
       "rewards": {
-        "money": 3,
+        "money": 7,
         "credit": 1,
         "storyCategory": "街坊"
       },
@@ -1758,8 +1761,7 @@
       "deadlineRounds": 3,
       "requiredCredit": 1,
       "rewards": {
-        "money": 2,
-        "publicProgress": 1,
+        "money": 7,
         "storyCategory": "街坊"
       },
       "historyStatus": [
@@ -1793,8 +1795,7 @@
       "deadlineRounds": 3,
       "requiredCredit": 1,
       "rewards": {
-        "money": 2,
-        "publicProgress": 1,
+        "money": 7,
         "storyCategory": "文籍"
       },
       "historyStatus": [
@@ -1832,9 +1833,8 @@
       "deadlineRounds": 4,
       "requiredCredit": 2,
       "rewards": {
-        "money": 3,
+        "money": 9,
         "credit": 1,
-        "publicProgress": 1,
         "storyCategory": "街坊"
       },
       "historyStatus": [
@@ -1873,7 +1873,7 @@
       "deadlineRounds": 4,
       "requiredCredit": 1,
       "rewards": {
-        "money": 3,
+        "money": 8,
         "credit": 1,
         "comfort": 1,
         "storyCategory": "游艺"
@@ -1892,6 +1892,216 @@
         "H11"
       ],
       "minimumNeutralActionsFromStart": 7
+    },
+    {
+      "id": "com_fruit_evening",
+      "name": "茶客加订京果",
+      "type": "delivery",
+      "startNode": "loc_ruan_fruit",
+      "steps": [
+        {
+          "action": "pickup",
+          "node": "loc_ruan_fruit",
+          "item": "茶客加订京果",
+          "cost": {
+            "money": 1
+          }
+        },
+        {
+          "action": "deliver",
+          "node": "loc_pan_tea"
+        }
+      ],
+      "deadlineRounds": 2,
+      "requiredCredit": 1,
+      "rewards": {
+        "money": 6,
+        "credit": 1,
+        "storyCategory": "茶食"
+      },
+      "historyStatus": [
+        "史",
+        "游"
+      ],
+      "historyNote": "店名及经营背景见临安铺席记录；本次订货、合作和报酬为游戏情境。",
+      "sources": [
+        "N01"
+      ]
+    },
+    {
+      "id": "com_candle_teahouse",
+      "name": "茶肆补一匣桕烛",
+      "type": "delivery",
+      "startNode": "loc_tong_candle",
+      "steps": [
+        {
+          "action": "pickup",
+          "node": "loc_tong_candle",
+          "item": "茶肆补一匣桕烛",
+          "cost": {
+            "money": 1
+          }
+        },
+        {
+          "action": "deliver",
+          "node": "loc_pan_tea"
+        }
+      ],
+      "deadlineRounds": 2,
+      "requiredCredit": 1,
+      "rewards": {
+        "money": 5,
+        "credit": 1,
+        "storyCategory": "百工"
+      },
+      "historyStatus": [
+        "史",
+        "游"
+      ],
+      "historyNote": "店名及经营背景见临安铺席记录；本次订货、合作和报酬为游戏情境。",
+      "sources": [
+        "N01"
+      ]
+    },
+    {
+      "id": "com_paper_books",
+      "name": "书铺急需纸札",
+      "type": "delivery",
+      "startNode": "loc_shu_paper",
+      "steps": [
+        {
+          "action": "pickup",
+          "node": "loc_shu_paper",
+          "item": "书铺急需纸札",
+          "cost": {
+            "money": 1
+          }
+        },
+        {
+          "action": "deliver",
+          "node": "loc_zhang_books"
+        }
+      ],
+      "deadlineRounds": 3,
+      "requiredCredit": 1,
+      "rewards": {
+        "money": 8,
+        "credit": 1,
+        "storyCategory": "文籍"
+      },
+      "historyStatus": [
+        "史",
+        "游"
+      ],
+      "historyNote": "店名及经营背景见临安铺席记录；本次订货、合作和报酬为游戏情境。",
+      "sources": [
+        "N01"
+      ]
+    },
+    {
+      "id": "com_crown_festival",
+      "name": "灯市客人的冠饰",
+      "type": "delivery",
+      "startNode": "loc_yu_crown",
+      "steps": [
+        {
+          "action": "pickup",
+          "node": "loc_yu_crown",
+          "item": "灯市客人的冠饰",
+          "cost": {
+            "money": 1
+          }
+        },
+        {
+          "action": "deliver",
+          "node": "loc_lantern_market"
+        }
+      ],
+      "deadlineRounds": 3,
+      "requiredCredit": 1,
+      "rewards": {
+        "money": 7,
+        "credit": 1,
+        "storyCategory": "衣饰"
+      },
+      "historyStatus": [
+        "史",
+        "游"
+      ],
+      "historyNote": "店名及经营背景见临安铺席记录；本次订货、合作和报酬为游戏情境。",
+      "sources": [
+        "N01"
+      ]
+    },
+    {
+      "id": "com_lacquer_tea",
+      "name": "茶席添置漆器",
+      "type": "delivery",
+      "startNode": "loc_peng_lacquer",
+      "steps": [
+        {
+          "action": "pickup",
+          "node": "loc_peng_lacquer",
+          "item": "茶席添置漆器",
+          "cost": {
+            "money": 1
+          }
+        },
+        {
+          "action": "deliver",
+          "node": "loc_jiang_tea"
+        }
+      ],
+      "deadlineRounds": 2,
+      "requiredCredit": 1,
+      "rewards": {
+        "money": 6,
+        "credit": 1,
+        "storyCategory": "百工"
+      },
+      "historyStatus": [
+        "史",
+        "游"
+      ],
+      "historyNote": "店名及经营背景见临安铺席记录；本次订货、合作和报酬为游戏情境。",
+      "sources": [
+        "N01"
+      ]
+    },
+    {
+      "id": "com_banner_local",
+      "name": "彩帛铺的灯市幌子",
+      "type": "delivery",
+      "startNode": "loc_gu_cai_bo",
+      "steps": [
+        {
+          "action": "pickup",
+          "node": "loc_gu_cai_bo",
+          "item": "彩帛铺的灯市幌子",
+          "cost": {
+            "money": 1
+          }
+        },
+        {
+          "action": "deliver",
+          "node": "loc_lantern_market"
+        }
+      ],
+      "deadlineRounds": 2,
+      "requiredCredit": 1,
+      "rewards": {
+        "money": 4,
+        "credit": 1,
+        "storyCategory": "百工"
+      },
+      "historyStatus": [
+        "史",
+        "游"
+      ],
+      "historyNote": "店名及经营背景见临安铺席记录；本次订货、合作和报酬为游戏情境。",
+      "sources": [
+        "N01"
+      ]
     }
   ],
   "stories": [
@@ -2067,7 +2277,7 @@
       "unlockNodes": [
         "loc_qingbi_fan"
       ],
-      "fact": "采用来稿校名“青篦扇子铺”，归炭桥河下；电子转录存在字形差异，影印底本仍待复核。",
+      "fact": "“青篦扇子铺”归炭桥河下；店名字形在电子转录中有差异，仍待影印本复核。",
       "scene": "暑日送扇只用于呈现季节商品，不是原始订单。",
       "historyStatus": [
         "史",
@@ -2202,7 +2412,7 @@
       "sources": [
         "H19"
       ],
-      "onlineDescription": "双方各自首次在茶肆歇脚，从两则尚未拥有的故事中选一则；剩余不足两则时按余量提供。"
+      "onlineDescription": "首次在茶肆歇脚可听两则见闻，选择一则收入故事册。"
     },
     {
       "id": "event_fire_watch",
@@ -2226,7 +2436,7 @@
       "name": "瓦舍演出日",
       "duration": "round",
       "effect": {
-        "freeStoryNode": "loc_zhongwa"
+        "firstEntertainmentWorkBonusMoney": 1
       },
       "historyStatus": [
         "史",
@@ -2236,7 +2446,7 @@
       "sources": [
         "H01"
       ],
-      "onlineDescription": "双方在中瓦听地点故事免钱筹，仍花1行动。"
+      "onlineDescription": "双方今日首次在游艺场所做工，额外获得1钱。"
     },
     {
       "id": "event_long_rain",
@@ -2289,7 +2499,7 @@
         "H15",
         "H16"
       ],
-      "onlineDescription": "双方本轮第一次相帮街坊，另得一则街坊故事。本在线版为一轮互助，无跨轮集资或失败扣钱。"
+      "onlineDescription": "街坊正忙着筹备灯市。双方今日第一次相帮街坊，另得一则灯市见闻。"
     }
   ],
   "sources": {
@@ -2423,19 +2633,19 @@
       "title": "吴自牧《梦粱录》卷十三",
       "locator": "“铺席”：清河坊、水巷口、官巷、桥河下及具名店铺。",
       "url": "https://zh.wikisource.org/wiki/夢粱錄/卷13",
-      "note": "与来稿表第3、43、94—108、442、637、693行互校。简体转写；异文另记，不伪造精确门牌。"
+      "note": "店铺与地段依文献相联系，原文不能确定每家店的精确门牌与间距。"
     },
     "N02": {
       "title": "耐得翁《都城纪胜》",
       "locator": "“诸行”“铺席”“市井”：官巷花饰、看垛钱、中瓦夜市。",
       "url": "https://zh.wikisource.org/wiki/都城紀勝",
-      "note": "来稿“井市”统一作所核电子本“市井”。行会、货币与夜市情况不可套用现代营业规则。"
+      "note": "卷内相关篇目作“市井”。行会、货币与夜市情况不可套用现代营业规则。"
     },
     "N03": {
       "title": "潜说友《咸淳临安志》卷十九",
       "locator": "“坊巷”“市（行、团、瓦子附）”：坊名、花市及中瓦。",
       "url": "https://zh.wikisource.org/wiki/咸淳臨安志_(四庫全書本)/卷019",
-      "note": "来稿将部分“市”条接在“昌化县”后，现按章节层级更正；咸淳年间材料晚于约1250年的游戏背景。"
+      "note": "相关条目属于“市（行、团、瓦子附）”；咸淳年间材料晚于约1250年的游戏背景。"
     },
     "N04": {
       "title": "潜说友《咸淳临安志》卷二十一",
@@ -2459,13 +2669,13 @@
       "title": "吴自牧《梦粱录》卷七",
       "locator": "“小河桥道”：铁线巷西的水巷桥。",
       "url": "https://zh.wikisource.org/wiki/夢粱錄/卷07",
-      "note": "来稿第695行书名误填《咸淳临安志》，据正文和链接改归《梦粱录》。"
+      "note": "此处水巷桥的引文见《梦粱录》卷七，可与其他桥道记载对读。"
     },
     "N08": {
       "title": "《西湖老人繁胜录》",
       "locator": "元夕灯市：清河坊至众安桥的灯火。",
       "url": "https://zh.wikisource.org/wiki/西湖老人繁勝錄",
-      "note": "新增来稿第195行；灯市联合备料与七日事件安排为游戏创作。"
+      "note": "灯火记载提供节日背景；本局联供订单与七日市情安排为游戏创作。"
     }
   },
   "designNotes": {
@@ -2567,7 +2777,7 @@
       {
         "id": "candle",
         "title": "桕烛，先认准这个字",
-        "fact": "五间楼前列有童家桕烛铺；来稿校记指出旧图的“柏烛”与原文不同。",
+        "fact": "《梦粱录》在五间楼前列有童家桕烛铺；“桕烛”中的“桕”与“柏”不同。",
         "quote": "五间楼前……童家桕烛铺。",
         "sources": [
           "N01"
@@ -2606,7 +2816,7 @@
       {
         "id": "fan",
         "title": "炭桥与青篦扇子铺",
-        "fact": "来稿采用“炭桥河下青篦扇子铺”；电子转录存在缺字、误字，保留审校名，不把字形差异另造一家店。",
+        "fact": "炭桥河下有青篦扇子铺的记载；电子转录存在字形差异，店名仍待影印本复核。",
         "quote": "炭桥河下青篦扇子铺。",
         "sources": [
           "N01",
@@ -2621,7 +2831,7 @@
           "loc_qingbi_fan"
         ],
         "period": "南宋城市记述",
-        "status": "采用来稿校名；底本字形仍待影印本复核",
+        "status": "店名字形待影印本复核",
         "boundary": "可说明文献中的地段与活动；店铺门牌、间距及本局合作为游戏设计。"
       },
       {
@@ -2806,7 +3016,7 @@
         "title": "坊巷细部参考图",
         "file": "assets/linan-detail.png",
         "original": "QQ截图20260930223730.png",
-        "note": "用户提供的截图片段，红框为原图所带。制图者、出版来源和复原时点未附；用来对照地名，不能当作宋代原绘地图或精确门牌图。",
+        "note": "图中红框标出部分坊巷。制图者、出版来源和复原时点未附；用来对照地名，不能当作宋代原绘地图或精确门牌图。",
         "guide": "先沿御街找清河坊，再辨中瓦与朝天门；看水道时请把桥名与对应河流一起读。"
       },
       {
@@ -2814,7 +3024,7 @@
         "title": "临安街河格局参考图",
         "file": "assets/linan-waterways.png",
         "original": "图片1.png",
-        "note": "用户提供的街河示意图，来源未详；蓝线为水路、棕线为主要街路。图面含不同时期地名，不能整张作为约1250年的同年地图。",
+        "note": "街河示意图，来源未详；蓝线为水路、棕线为主要街路。图面含不同时期地名，不能整张作为约1250年的同年地图。",
         "guide": "先看西湖、御街与东侧水路的相对格局。小瀛洲、湖心亭等图面名称不据此加入宋代剧情。"
       },
       {
@@ -2822,7 +3032,7 @@
         "title": "历史城垣与现代城市对照图",
         "file": "assets/linan-modern-overlay.png",
         "original": "图片2.png",
-        "note": "用户提供的现代底图叠加历史城垣示意。红虚线、数字及宫城色块为原图标绘；未附坐标、编号表与制图出处，不将其用作现代导航。",
+        "note": "现代底图上的历史城垣示意。红虚线、数字及宫城色块为原图标绘；未附坐标、编号表与制图出处，不将其用作现代导航。",
         "guide": "看湖山、城垣和城市大致范围如何对应；现代街路不能直接当成宋代玩家的行走路线。"
       }
     ],
@@ -2861,7 +3071,7 @@
           673
         ],
         "issue": "三元楼更创、宗阳宫与御路改造晚于约1250年。",
-        "decision": "作为后期沿革说明；本局不新增这些后期形态的营业场景。"
+        "decision": "这些记载可用于了解后来的城市变化，不能倒推为约1250年已存在的建筑形态。"
       },
       {
         "title": "同名桥合并风险",
@@ -2870,7 +3080,7 @@
           706
         ],
         "issue": "宝祐坊内小河桥与孤山路口断桥同名。",
-        "decision": "分别存为不同地点；不凭相同名称连线。"
+        "decision": "要结合坊名和水系区分，不能只凭桥名认作同一地点。"
       },
       {
         "title": "同名望仙桥",
@@ -2935,11 +3145,11 @@
       "answer": "0",
       "feedback": "顾家与蒋检阅都列在清河坊；阮家京果铺列在水巷口。人物和送货合作为本局创作。",
       "cost": {
-        "actions": 1,
-        "money": 1
+        "actions": 0,
+        "money": 0
       },
       "bonus": {
-        "credit": 1
+        "credit": 0
       }
     },
     {
@@ -2964,11 +3174,11 @@
       "answer": "1",
       "feedback": "蒋检阅茶肆的交往背景有原文支持；“花茶坊”另有其经营语境，不能当成所有茶肆的通称。具体客人与茶席为虚构。",
       "cost": {
-        "actions": 1,
-        "money": 1
+        "actions": 0,
+        "money": 0
       },
       "bonus": {
-        "credit": 1
+        "credit": 0
       }
     },
     {
@@ -2994,11 +3204,11 @@
       "answer": "0",
       "feedback": "官巷花行的商品与冠梳、钗环并列，不能只理解成鲜花摊。俞家仍属于水巷口；这次询货关系是游戏创作。",
       "cost": {
-        "actions": 1,
-        "money": 1
+        "actions": 0,
+        "money": 0
       },
       "bonus": {
-        "credit": 1
+        "credit": 0
       }
     },
     {
@@ -3023,11 +3233,11 @@
       "answer": "0",
       "feedback": "“温州漆器”与“水巷桥河下”的铺址语要分开。史料不提供这批虚构货物的具体产地、航次或价格。",
       "cost": {
-        "actions": 1,
-        "money": 1
+        "actions": 0,
+        "money": 0
       },
       "bonus": {
-        "credit": 1
+        "credit": 0
       }
     },
     {
@@ -3052,11 +3262,11 @@
       "answer": "1",
       "feedback": "《都城纪胜》把看垛钱与入纳算请钞引联系起来，不支持随取随借或无限兑换。这里不设置历史上未经核实的固定汇率。",
       "cost": {
-        "actions": 1,
-        "money": 1
+        "actions": 0,
+        "money": 0
       },
       "bonus": {
-        "credit": 1
+        "credit": 0
       }
     },
     {
@@ -3081,11 +3291,11 @@
       "answer": "1",
       "feedback": "防虞巡警条区分昼旗夜灯及门内、门外、城外。演练没有真实火灾，也不把此规则当作现代救火指引。",
       "cost": {
-        "actions": 1,
-        "money": 1
+        "actions": 0,
+        "money": 0
       },
       "bonus": {
-        "credit": 1
+        "credit": 0
       }
     },
     {
@@ -3110,11 +3320,11 @@
       "answer": "1",
       "feedback": "原文强调中瓦前夜市，与日间无异。摊主和摊单为虚构；本局不因此额外增加夜间行动。",
       "cost": {
-        "actions": 1,
-        "money": 1
+        "actions": 0,
+        "money": 0
       },
       "bonus": {
-        "credit": 1
+        "credit": 0
       }
     },
     {
@@ -3139,11 +3349,11 @@
       "answer": "0",
       "feedback": "铺席条列“童家桕烛铺”。先把商品名称认准，再谈备料；这次誊抄差事和灯市合作是游戏情境。",
       "cost": {
-        "actions": 1,
-        "money": 1
+        "actions": 0,
+        "money": 0
       },
       "bonus": {
-        "credit": 1
+        "credit": 0
       }
     }
   ]
